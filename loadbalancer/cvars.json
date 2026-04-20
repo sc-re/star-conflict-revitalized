@@ -1,0 +1,15 @@
+{
+  "mss_playerBoughtVesselAdCooldown": 20.0,
+  "clan_shipBuildHighRanks": 3.0,
+  "sv_dailyWinPvpExpRewardCf": 2.0,
+  "sv_dailyWinCoopExpRewardCf": 2.0,
+  "event_halloween": 0.0,
+  "event_claws": 0.0,
+  "sv_dailyWinPveExpRewardCf": 2.0,
+  "clan_shipUpgradeCanBuild": 3.0,
+  "clan_shipPartsCanBuild": 4.0,
+  "mss_playerBoughtVesselAdLoBrace": -4.0,
+  "sv_dailyWinBrawlExpRewardCf": 2.0,
+  "cl_showBiomorphsKilledCounter": 0.0,
+  "mss_playerBoughtVesselAdHiBrace": 4.0
+}
