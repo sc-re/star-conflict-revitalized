@@ -9,12 +9,12 @@ const (
 	tgpM    = uint32(0x5bd1e995)
 )
 
-func TgpChecksum(bodyLen uint32, msgType uint16, seq uint32, body []byte) uint16 {
+func TgpChecksum(bodyLen uint32, seq uint16, seqRet uint16, cmdType uint16, body []byte) uint16 {
 	hdr := make([]byte, 12)
 	binary.LittleEndian.PutUint32(hdr[0:], bodyLen)
-	binary.LittleEndian.PutUint16(hdr[4:], msgType)
-	binary.LittleEndian.PutUint16(hdr[6:], uint16(seq>>16))
-	binary.LittleEndian.PutUint16(hdr[8:], uint16(seq&0xffff))
+	binary.LittleEndian.PutUint16(hdr[4:], seq)
+	binary.LittleEndian.PutUint16(hdr[6:], seqRet)
+	binary.LittleEndian.PutUint16(hdr[8:], cmdType)
 
 	h := uint32(12) ^ tgpSeed
 	for _, data := range [][]byte{hdr, body} {
