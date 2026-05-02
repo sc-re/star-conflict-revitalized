@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
-      - run: go build -o out/${{ matrix.artifact_name }} starconflict/loadbalancer
+      - run: go build -o out/${{ matrix.artifact_name }} starconflict/cmd/loadbalancer
       - run: cp loadbalancer/config.json out/
         if: github.ref == 'refs/heads/ci'
       - run: cp loadbalancer/cvars.json out/

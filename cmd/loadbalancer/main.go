@@ -9,12 +9,7 @@ import (
 	"net"
 	"os"
 	"starconflict/lib/protocol"
-)
-
-// TODO: CMD Types should be in lib/
-const (
-	SCMD_ASSIGNED_SHARD = 0x0
-	SCMD_LB_CVARS       = 0x3
+	"starconflict/lib/types"
 )
 
 type Config struct {
@@ -129,14 +124,14 @@ func handle(conn net.Conn, cfg *Config, cvars *CvarsMap) {
 	defer conn.Close()
 	log.Printf("%s: new connection", conn.RemoteAddr())
 
-	if _, err := conn.Write(protocol.MakePacket(SCMD_LB_CVARS, 0, 0, buildCvarsBody(cvars))); err != nil {
+	if _, err := conn.Write(protocol.MakeMessage(types.SCMD_LB_CVARS, 0, 0, buildCvarsBody(cvars))); err != nil {
 		log.Printf("error sending cvars: %v", err)
 		return
 	}
 	log.Printf("%s: sent cvars", conn.RemoteAddr())
 
 	body := buildShardBody(cfg.ShardIP, cfg.ShardPort, cfg.ChatIP, cfg.ChatPort)
-	if _, err := conn.Write(protocol.MakePacket(SCMD_ASSIGNED_SHARD, 2, 0, body)); err != nil {
+	if _, err := conn.Write(protocol.MakeMessage(types.SCMD_ASSIGNED_SHARD, 2, 0, body)); err != nil {
 		log.Printf("error sending shard address: %v", err)
 		return
 	}
