@@ -6,7 +6,47 @@ permissions:
 on: [ push, pull_request ]
 
 jobs:
-  build:
+  build-shard:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: shard
+            asset_name: shard_linux.zip
+          - os: macos-latest
+            artifact_name: shard
+            asset_name: shard_macos.zip
+          - os: windows-latest
+            artifact_name: shard.exe
+            asset_name: shard_win.zip
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+      - run: go build -o out/${{ matrix.artifact_name }} starconflict/cmd/shard
+      - run: cp shard/config.json out/
+        if: github.ref == 'refs/heads/ci'
+      - run: cp shard/cvars.json out/
+        if: github.ref == 'refs/heads/ci'
+      - uses: thedoctor0/zip-release@0.7.6
+        with:
+          type: 'zip'
+          filename: ${{ matrix.asset_name }}
+          path: out/
+        if: github.ref == 'refs/heads/ci'
+      - uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ matrix.asset_name }}
+          asset_name: ${{ matrix.asset_name }}
+          tag: ${{ github.ref }}
+          overwrite: true
+          prerelease: true
+        if: github.ref == 'refs/heads/ci'
+  build-loadbalancer:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -27,10 +67,6 @@ jobs:
         with:
           go-version: '1.26'
       - run: go build -o out/${{ matrix.artifact_name }} starconflict/cmd/loadbalancer
-      - run: cp loadbalancer/config.json out/
-        if: github.ref == 'refs/heads/ci'
-      - run: cp loadbalancer/cvars.json out/
-        if: github.ref == 'refs/heads/ci'
       - uses: thedoctor0/zip-release@0.7.6
         with:
           type: 'zip'

@@ -1,3 +1,5 @@
+//go:generate stringer -type=MessageType
+
 package types
 
 type MessageType uint16

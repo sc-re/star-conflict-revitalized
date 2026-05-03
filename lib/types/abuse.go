@@ -1,0 +1,12 @@
+package types
+
+type AbuseCategory uint8
+
+const (
+	ABUSE_GENERAL AbuseCategory = iota
+	ABUSE_CHAT_ABUSE
+	ABUSE_GENERAL_MECAHNICS_ABUSE
+	ABUSE_SLACKING
+	ABUSE_ANTI_CHEAT_BOT
+	ABUSE_NUM
+)
