@@ -3,6 +3,7 @@ package asyncreq
 import (
 	"bytes"
 	"encoding/binary"
+	"log"
 	"net"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
@@ -36,6 +37,7 @@ func handle_ac_welcome_msg(body []byte, seq uint16, seqRet uint16, conn net.Conn
 	if err := req.parse(body[2:]); err != nil {
 		// conn.Write(Failure)
 	}
+	log.Printf("Req: ac_welcome_msg[%v]", req)
 	switch req.lang {
 	case "en":
 		welcomeMsg = "Welcome <br><br>Here"

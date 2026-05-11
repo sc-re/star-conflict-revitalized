@@ -2,6 +2,7 @@ package asyncreq
 
 import (
 	"encoding/binary"
+	"log"
 	"net"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
@@ -23,6 +24,7 @@ func handle_ac_universe_get(body []byte, seq uint16, seqRet uint16, conn net.Con
 	if len(body) > 2 {
 		// err
 	}
+	log.Printf("Req: ac_universe_get[%v]", req)
 	resp := req.response()
 	conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, seq, seqRet, resp))
 }

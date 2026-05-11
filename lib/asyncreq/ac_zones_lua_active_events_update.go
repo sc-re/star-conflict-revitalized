@@ -2,6 +2,7 @@ package asyncreq
 
 import (
 	"encoding/binary"
+	"log"
 	"net"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
@@ -19,6 +20,7 @@ func (req *ac_zones_lua_active_events_update_req) response() []byte {
 func handle_ac_zones_lua_active_events_update(body []byte, seq uint16, seqRet uint16, conn net.Conn) {
 	req := ac_zones_lua_active_events_update_req{}
 	// TODO: actually parse and do something with body
+	log.Printf("Req: ac_zones_lua_active_events_update[%v]", req)
 	resp := req.response()
 	conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, seq, seqRet, resp))
 }

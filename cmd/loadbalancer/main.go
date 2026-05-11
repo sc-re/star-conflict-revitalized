@@ -1,38 +1,25 @@
 package main
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"log"
 	"math"
 	"net"
 	"os"
+	"starconflict/lib/bitwriter"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
 )
 
 type Config struct {
 	ShardIP   string `json:"shard_ip"`
-	ShardPort int    `json:"shard_port"`
+	ShardPort uint16 `json:"shard_port"`
 	ChatIP    string `json:"chat_ip"`
-	ChatPort  int    `json:"chat_port"`
+	ChatPort  uint16 `json:"chat_port"`
 }
 
 type CvarsMap map[string]float32
-
-// encodeCvarName applies the carry-bit right-shift encoding from the LB protocol:
-// each char is shifted right by 1; the dropped LSB becomes the MSB of the next byte.
-func encodeCvarName(name string) []byte {
-	carry := byte(0)
-	out := make([]byte, 0, len(name)+1)
-	for _, c := range []byte(name) {
-		out = append(out, (c>>1)|(carry<<7))
-		carry = c & 1
-	}
-	out = append(out, carry<<7)
-	return out
-}
 
 // float32ToFloat16 converts a float32 to IEEE 754 half-precision (float16).
 func float32ToFloat16(f float32) uint16 {
@@ -60,64 +47,39 @@ func encodeCvarFloat(f float32) uint16 {
 }
 
 func buildCvarsBody(cvarsMap *CvarsMap) []byte {
-	out := make([]byte, 4)
-	binary.BigEndian.PutUint32(out, uint32(len(*cvarsMap)))
+	bw := bitwriter.NewWriter(make([]byte, 0, 90))
+	bw.WriteBeUint32(uint32(len(*cvarsMap)))
 	for k, v := range *cvarsMap {
-		out = append(out, encodeCvarName(k)...)
+		bw.WriteBool(false)
+		bw.WriteString(k)
+		// XXX: bw.Align()
+		bw.WriteBool(false)
+		bw.WriteBool(false)
+		bw.WriteBool(false)
+		bw.WriteBool(false)
+		bw.WriteBool(false)
+		bw.WriteBool(false)
+		bw.WriteBool(false)
+		bw.WriteByte(0x2)
 		ev := encodeCvarFloat(v)
-		out = append(out, 0x02, byte(ev>>8), byte(ev&0xFF), 0x00, 0x00)
+		bw.WriteBeUint16(ev)
+		bw.WriteBeUint16(0x00)
 	}
-	out = append(out, 0x00)
-	return out
-}
-
-type bitWriter struct {
-	buf []byte
-	bit int
-}
-
-func (bw *bitWriter) writeBit(b bool) {
-	if bw.bit == 0 {
-		bw.buf = append(bw.buf, 0)
-	}
-	if b {
-		bw.buf[len(bw.buf)-1] |= 1 << (7 - bw.bit)
-	}
-	bw.bit = (bw.bit + 1) % 8
-}
-
-func (bw *bitWriter) writeBool(v bool) { bw.writeBit(v) }
-
-func (bw *bitWriter) writeUint8(v uint8) {
-	for i := 7; i >= 0; i-- {
-		bw.writeBit((v>>i)&1 == 1)
-	}
-}
-
-func (bw *bitWriter) writeUint16(v uint16) {
-	for i := 15; i >= 0; i-- {
-		bw.writeBit((v>>i)&1 == 1)
-	}
-}
-
-func (bw *bitWriter) writeString(s string) {
-	for _, c := range []byte(s) {
-		bw.writeUint8(c)
-	}
-	bw.writeUint8(0)
+	bw.WriteByte(0x00)
+	return bw.ReturnSlice()
 }
 
 // XXX: Why is this padded by two single bits...
-func buildShardBody(shardIP string, shardPort int, chatIP string, chatPort int) []byte {
-	bw := &bitWriter{}
-	bw.writeBool(true)
-	bw.writeUint8(1)
-	bw.writeString(shardIP)
-	bw.writeUint16(uint16(shardPort))
-	bw.writeBool(true)
-	bw.writeString(chatIP)
-	bw.writeUint16(uint16(chatPort))
-	return bw.buf
+func buildShardBody(shardIP string, shardPort uint16, chatIP string, chatPort uint16) []byte {
+	bw := bitwriter.NewWriter(make([]byte, 0, 40))
+	bw.WriteBool(true)
+	bw.WriteByte(1)
+	bw.WriteCString(shardIP)
+	bw.WriteBeUint16(shardPort)
+	bw.WriteBool(true)
+	bw.WriteCString(chatIP)
+	bw.WriteBeUint16(chatPort)
+	return bw.ReturnSlice()
 }
 
 func handle(conn net.Conn, cfg *Config, cvars *CvarsMap) {

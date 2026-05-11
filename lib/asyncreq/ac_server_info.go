@@ -2,6 +2,7 @@ package asyncreq
 
 import (
 	"encoding/binary"
+	"log"
 	"math"
 	"net"
 	"starconflict/lib/protocol"
@@ -31,6 +32,7 @@ func handle_ac_server_info(body []byte, seq uint16, seqRet uint16, conn net.Conn
 	if len(body) > 2 {
 		// err
 	}
+	log.Printf("Req: ac_server_info[%v]", req)
 	resp := req.response(4, 0, 0, 0)
 	conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, seq, seqRet, resp))
 }
