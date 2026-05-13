@@ -7,18 +7,33 @@ import (
 	"net"
 	"os"
 	"runtime/debug"
+	"sync"
+
 	"starconflict/lib/asyncreq"
 	"starconflict/lib/auth"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
-	"sync"
+
+	"github.com/jmoiron/sqlx"
+	_ "github.com/mattn/go-sqlite3"
 )
+
+var schema = `
+CREATE TABLE user (
+	mail TEXT NOT NULL UNIQUE,
+	nickname TEXT NOT NULL UNIQUE,
+	uid INT8 NOT NULL PRIMARY KEY,
+	zone INT2,
+	password TEXT
+);
+`
 
 type session struct {
 	uid          uint64
 	sessionToken string
 	seq          uint16
 	conn         net.Conn
+	db           *sqlx.DB
 }
 
 func (session *session) handleAuthentication(connectionMap *sync.Map) error {
@@ -35,10 +50,12 @@ func (session *session) handleAuthentication(connectionMap *sync.Map) error {
 		if hdr.CommandType == types.CCMD_AUTH_REQUEST {
 			log.Printf("Got a %s", hdr.CommandType)
 			slog.Info("Recieved", "commandType", hdr.CommandType)
-			valid, disconnectReason, err := auth.Authenticate(body, key, group)
+			var valid bool
+			var disconnectReason types.MasterServerDisconnectReason
+			valid, session.uid, disconnectReason, err = auth.Authenticate(body, session.db, key, group)
 			if valid {
 				session.seq += 1
-				auth.SendAuthAck(session.conn, session.seq, hdr.Sequence)
+				auth.SendAuthAck(session.conn, session.db, session.seq, hdr.Sequence, session.uid)
 				connectionMap.Store(session.uid, session)
 			} else {
 				session.conn.Write(protocol.MakeDisconnectMessage(disconnectReason))
@@ -81,7 +98,7 @@ func (session *session) handleMainLoop() error {
 	}
 }
 
-func handle(conn net.Conn, connectionMap *sync.Map) {
+func handle(conn net.Conn, db *sqlx.DB, connectionMap *sync.Map) {
 	defer conn.Close()
 	defer func() {
 		if err := recover(); err != nil {
@@ -90,9 +107,12 @@ func handle(conn net.Conn, connectionMap *sync.Map) {
 		}
 	}()
 	session := session{}
+	session.db = db
 	session.seq = 0
 	session.conn = conn
-	session.handleAuthentication(connectionMap)
+	if err := session.handleAuthentication(connectionMap); err != nil {
+		return
+	}
 	session.handleMainLoop()
 }
 
@@ -114,6 +134,13 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, slogOptions))
 	slog.SetDefault(logger)
 
+	db, err := sqlx.Connect("sqlite3", "sc.db?cache=shared&mode=memory")
+	if err != nil {
+		log.Fatalf("Failed to connect to databse %v", err)
+	}
+	defer db.Close()
+	//db.MustExec(schema)
+
 	listen, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
 		log.Fatalf("listen: %v", err)
@@ -127,6 +154,6 @@ func main() {
 			slog.Error("accept failed", "error", err)
 			continue
 		}
-		go handle(conn, connectionMap)
+		go handle(conn, db, connectionMap)
 	}
 }

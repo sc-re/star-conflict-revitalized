@@ -15,6 +15,7 @@ import (
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/monnand/dhkx"
 )
 
@@ -43,6 +44,14 @@ type authRequest struct {
 	password   []byte
 	platform   string
 	machineId  string
+}
+
+type user struct {
+	Uid      uint64
+	Nickname string
+	Zone     byte
+	Password string
+	Mail     string
 }
 
 func readAuthMethod(reader *bytes.Reader) (authMethod, error) {
@@ -91,17 +100,6 @@ func (auth *authRequest) parseCCmdAuthRequest(body []byte) error {
 	return nil
 }
 
-func checkPassword(password []byte, email string) (bool, error) {
-	// XXX: Totally legit
-	if email != "test@localhost" {
-		return false, nil
-	}
-	if !bytes.Equal(password, []byte("test")) {
-		return false, nil
-	}
-	return true, nil
-}
-
 func (auth *authRequest) decryptPassword(group *dhkx.DHGroup, key *dhkx.DHKey) error {
 	buf := make([]byte, 256)
 	sharedKey, err := group.ComputeKey(auth.gBmodP, key)
@@ -136,26 +134,30 @@ func (auth *authRequest) checkClientVersion() bool {
 	return auth.version == "1.14.09.166666"
 }
 
-func Authenticate(body []byte, key *dhkx.DHKey, group *dhkx.DHGroup) (bool, types.MasterServerDisconnectReason, error) {
+func Authenticate(body []byte, db *sqlx.DB, key *dhkx.DHKey, group *dhkx.DHGroup) (bool, uint64, types.MasterServerDisconnectReason, error) {
 	auth := authRequest{}
 	err := auth.parseCCmdAuthRequest(body)
 	if err != nil {
-		return false, types.MasterServerDisconnectReason(0xff), err
+		return false, 0, types.MasterServerDisconnectReason(0xff), err
 	}
 	err = auth.decryptPassword(group, key)
-	valid, err := checkPassword(auth.password, auth.email)
+	user := user{}
+	if err := db.Get(&user, "SELECT * FROM user WHERE mail=$1", auth.email); err != nil {
+		return false, 0, types.DR_INVALID_LOGIN, err
+	}
+	valid := checkPassword(auth.password, user.Password)
 	if !valid {
-		return false, types.DR_INVALID_LOGIN, err
+		return false, 0, types.DR_INVALID_LOGIN, err
 	}
 	valid = auth.checkClientVersion()
 	if !valid {
-		return false, types.DR_BAD_CLIENT_VERSION, nil
+		return false, 0, types.DR_BAD_CLIENT_VERSION, nil
 	}
 	valid = auth.checkHash()
 	if !valid {
-		return false, types.DR_BAD_CLIENT_VERSION, nil
+		return false, 0, types.DR_BAD_CLIENT_VERSION, nil
 	}
-	return true, 0, nil
+	return true, user.Uid, 0, nil
 }
 
 func CreateClientChallenge() (*dhkx.DHKey, *dhkx.DHGroup) {
@@ -167,21 +169,23 @@ func CreateClientChallenge() (*dhkx.DHKey, *dhkx.DHGroup) {
 	return priv, group
 }
 
-func SendAuthAck(conn net.Conn, seq uint16, seqRet uint16) error {
-	// TODO: get form DB
-	nick := "Bruh"
+func SendAuthAck(conn net.Conn, db *sqlx.DB, seq uint16, seqRet uint16, uid uint64) error {
+	// TODO: Actually generate some tokens and store them somewhere
 	idkToken := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	uid := uint64(10)
 	token := uint64(10)
-	zone := uint32(1)
-	// Actual code
-	bw := bitwriter.NewWriter(make([]byte, 0, 86+len(nick)))
-	bw.WriteBeUint64(uid)
+
+	var user user
+	if err := db.Get(&user, "SELECT nickname,uid,zone FROM user WHERE uid=$1", uid); err != nil {
+		return err
+	}
+
+	bw := bitwriter.NewWriter(make([]byte, 0, 86+len(user.Nickname)))
+	bw.WriteBeUint64(user.Uid)
 	bw.WriteBeUint64(token)
-	bw.WriteCString(nick)
+	bw.WriteCString(user.Nickname)
 	bw.WriteCString(idkToken)
 	bw.WriteBool(false)
-	bw.WriteBeUint32(zone)
+	bw.WriteBeUint32(uint32(user.Zone))
 	_, err := conn.Write(protocol.MakeMessage(types.SCMD_AUTH_ACK, seq, seqRet, bw.ReturnSlice()))
 	return err
 }
