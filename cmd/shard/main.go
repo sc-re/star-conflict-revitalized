@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"log"
+	"log/slog"
 	"net"
+	"os"
 	"runtime/debug"
 	"starconflict/lib/asyncreq"
 	"starconflict/lib/auth"
@@ -31,18 +33,18 @@ func (session *session) handleAuthentication(connectionMap *sync.Map) error {
 			return err
 		}
 		if hdr.CommandType == types.CCMD_AUTH_REQUEST {
-			_ = body
 			log.Printf("Got a %s", hdr.CommandType)
-			valid, dr, err := auth.Authenticate(body, key, group)
+			slog.Info("Recieved", "commandType", hdr.CommandType)
+			valid, disconnectReason, err := auth.Authenticate(body, key, group)
 			if valid {
 				session.seq += 1
 				auth.SendAuthAck(session.conn, session.seq, hdr.Sequence)
 				connectionMap.Store(session.uid, session)
 			} else {
-				session.conn.Write(protocol.MakeDisconnectMessage(dr))
+				session.conn.Write(protocol.MakeDisconnectMessage(disconnectReason))
 			}
 			if err != nil {
-				log.Printf("Error %v", err)
+				slog.Warn("failed authentication", "error", err)
 				return err
 			}
 			return nil
@@ -96,21 +98,33 @@ func handle(conn net.Conn, connectionMap *sync.Map) {
 
 func main() {
 	listenAddress := flag.String("listen", "127.0.0.1:3802", "Address to listen on")
+	logLevel := flag.String("loglevel", "info", "Set loglevel [debug/info/warn/error]")
 	flag.Parse()
 
 	connectionMap := &sync.Map{}
+
+	slogLevel := slog.LevelDebug
+	if err := slogLevel.UnmarshalText([]byte(*logLevel)); err != nil {
+		log.Fatalf("Invalid logLevel %v: %v", logLevel, err)
+	}
+	slogOptions := &slog.HandlerOptions{
+		AddSource: true,
+		Level:     slogLevel,
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, slogOptions))
+	slog.SetDefault(logger)
 
 	listen, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
 		log.Fatalf("listen: %v", err)
 	}
 	defer listen.Close()
-	log.Printf("shard listening on :%s", *listenAddress)
+	slog.Info("TCP Socket opened", "listenAddress", *listenAddress)
 
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
-			log.Printf("accept: %v", err)
+			slog.Error("accept failed", "error", err)
 			continue
 		}
 		go handle(conn, connectionMap)

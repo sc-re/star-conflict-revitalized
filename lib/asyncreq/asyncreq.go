@@ -2,7 +2,7 @@ package asyncreq
 
 import (
 	"encoding/binary"
-	"log"
+	"log/slog"
 	"net"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
@@ -22,6 +22,6 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, conn net.Conn
 	case types.AC_ZONES_LUA_ACTIVE_EVENTS_UPDATE:
 		handle_ac_zones_lua_active_events_update(body, seq, hdr.Sequence, conn)
 	default:
-		log.Printf("Unhandled AsyncReq of type: %s", actype)
+		slog.Warn("Unhandled AsyncReq", "AsyncType", actype)
 	}
 }
