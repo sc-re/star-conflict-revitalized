@@ -5,13 +5,13 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"io"
 
 	"net"
 	"slices"
 
+	"starconflict/lib/bitwriter"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
 
@@ -175,17 +175,14 @@ func SendAuthAck(conn net.Conn, seq uint16, seqRet uint16) error {
 	token := uint64(10)
 	zone := uint32(1)
 	// Actual code
-	body := make([]byte, 86+len(nick))
-	binary.BigEndian.PutUint64(body[0:], uid)
-	binary.BigEndian.PutUint64(body[8:], token)
-	copy(body[16:], []byte(nick))
-	off := 16 + len(nick)
-	copy(body[off+1:], []byte(idkToken))
-	b := make([]byte, 8)
-	zoneShifted := uint64(zone) << 7
-	binary.BigEndian.PutUint64(b, zoneShifted)
-	copy(body[off+1+64:], b[3:])
-	_, err := conn.Write(protocol.MakeMessage(types.SCMD_AUTH_ACK, seq, seqRet, body))
+	bw := bitwriter.NewWriter(make([]byte, 0, 86+len(nick)))
+	bw.WriteBeUint64(uid)
+	bw.WriteBeUint64(token)
+	bw.WriteCString(nick)
+	bw.WriteCString(idkToken)
+	bw.WriteBool(false)
+	bw.WriteBeUint32(zone)
+	_, err := conn.Write(protocol.MakeMessage(types.SCMD_AUTH_ACK, seq, seqRet, bw.ReturnSlice()))
 	return err
 }
 
