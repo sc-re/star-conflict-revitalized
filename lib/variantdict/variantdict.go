@@ -25,13 +25,40 @@ func Marshal(in any) ([]byte, error) {
 	bw := bitwriter.NewWriter(make([]byte, 0, 100))
 	t := reflect.ValueOf(in)
 	kind := t.Kind()
-	if kind != reflect.Struct {
-		return nil, fmt.Errorf("expected on of struct, got %s", t.Kind())
-	}
-	if err := writeDict(bw, t); err != nil {
-		return nil, err
+	switch kind {
+	case reflect.Struct:
+		if err := writeDict(bw, t); err != nil {
+			return nil, err
+		}
+	case reflect.Map:
+		if err := writeMap(bw, t); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("expected on of struct or map, got %s", t.Kind())
 	}
 	return bw.ReturnSlice(), nil
+}
+
+func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
+	len := in.Len()
+	if err := bw.WriteBeUint32(uint32(len)); err != nil {
+		return err
+	}
+	if len <= 0 {
+		return nil
+	}
+	bw.WriteBool(false)
+	iter := in.MapRange()
+	for iter.Next() {
+		if err := writeStringKey(bw, iter.Key().String(), ""); err != nil {
+			return err
+		}
+		if err := writeValue(bw, iter.Value()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeDict(bw *bitwriter.Writer, in reflect.Value) error {
