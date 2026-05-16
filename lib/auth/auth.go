@@ -90,12 +90,16 @@ func (auth *authRequest) parseCCmdAuthRequest(body []byte) error {
 	if err != nil {
 		return err
 	}
-	r.ReadByte()
+	if _, err := r.ReadByte(); err != nil {
+		return err
+	}
 	auth.gBmodP, err = readgBmodp(r)
 	if err != nil {
 		return err
 	}
-	io.ReadFull(r, auth.cipherText[:])
+	if _, err := io.ReadFull(r, auth.cipherText[:]); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -192,8 +196,8 @@ func SendAuthAck(conn net.Conn, db *sqlx.DB, seq uint16, seqRet uint16, uid uint
 
 func SendChallenge(conn net.Conn, key *dhkx.DHKey, seq uint16) error {
 	pub := key.Bytes()
-	len := []byte{byte(len(pub))}
-	body := slices.Concat(len, pub)
+	length := []byte{byte(len(pub))}
+	body := slices.Concat(length, pub)
 	_, err := conn.Write(protocol.MakeMessage(types.SCMD_AUTH_REQ, seq, 0, body))
 	return err
 }

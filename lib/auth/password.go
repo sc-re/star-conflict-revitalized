@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -34,10 +35,6 @@ var (
 	formatString = "$%s$v=%d$m=%d,t=%d,p=%d,l=%d$%s$%s"
 )
 
-type argonargs struct {
-	cost int32
-}
-
 func hashPassword(password []byte) (string, error) {
 	args := phc{
 		id:              "argon2id",
@@ -57,13 +54,12 @@ func hashPassword(password []byte) (string, error) {
 
 func checkPassword(password []byte, hash string) bool {
 	args := phc{}
-	args.phcDecode(hash)
-	key := argon2.IDKey(password, args.salt, args.timeCost, args.memoryCost, args.parallelismCost, args.keyLength)
-	if subtle.ConstantTimeCompare(key, args.hash) == 1 {
-		return true
-	} else {
+	if err := args.phcDecode(hash); err != nil {
+		slog.Error("Failed to decode phc string", "error", err)
 		return false
 	}
+	key := argon2.IDKey(password, args.salt, args.timeCost, args.memoryCost, args.parallelismCost, args.keyLength)
+	return subtle.ConstantTimeCompare(key, args.hash) == 1
 }
 
 func (phc *phc) generateSalt(saltLength uint) error {

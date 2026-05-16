@@ -30,7 +30,7 @@ func MakeMessage(cmdType types.MessageType, seq uint16, seqRet uint16, body []by
 func ParseNextMessage(conn net.Conn) (*Header, []byte, error) {
 	hdrb := make([]byte, 12)
 	hdr := Header{}
-	body := []byte{}
+	var body []byte
 	if _, err := io.ReadFull(conn, hdrb); err != nil {
 		return nil, nil, fmt.Errorf("read hdr: %w", err)
 	}
@@ -40,17 +40,17 @@ func ParseNextMessage(conn net.Conn) (*Header, []byte, error) {
 		// Handle Keep Alive BS
 		hdr.Special = true
 		return &hdr, body, nil
-	} else {
-		hdr.Special = false
-		hdr.Sequence = binary.BigEndian.Uint16(hdrb[4:])
-		hdr.ReturnSequence = binary.BigEndian.Uint16(hdrb[6:])
-		hdr.CommandType = types.MessageType(binary.BigEndian.Uint16(hdrb[8:]))
-		hdr.Checksum = binary.BigEndian.Uint16(hdrb[10:])
-		body = make([]byte, hdr.Length)
+	}
 
-		if _, err := io.ReadFull(conn, body); err != nil {
-			return nil, nil, fmt.Errorf("read body: %w", err)
-		}
+	hdr.Special = false
+	hdr.Sequence = binary.BigEndian.Uint16(hdrb[4:])
+	hdr.ReturnSequence = binary.BigEndian.Uint16(hdrb[6:])
+	hdr.CommandType = types.MessageType(binary.BigEndian.Uint16(hdrb[8:]))
+	hdr.Checksum = binary.BigEndian.Uint16(hdrb[10:])
+	body = make([]byte, hdr.Length)
+
+	if _, err := io.ReadFull(conn, body); err != nil {
+		return nil, nil, fmt.Errorf("read body: %w", err)
 	}
 	return &hdr, body, nil
 }

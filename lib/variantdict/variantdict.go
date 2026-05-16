@@ -48,9 +48,9 @@ func BwMarshal(bw *bitwriter.Writer, in any) error {
 }
 
 func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
-	len := in.Len()
-	bw.WriteBeUint32(uint32(len))
-	if len <= 0 {
+	length := in.Len()
+	bw.WriteBeUint32(uint32(length))
+	if length <= 0 {
 		return nil
 	}
 	bw.WriteBool(false)
@@ -65,9 +65,9 @@ func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
 }
 
 func writeDict(bw *bitwriter.Writer, in reflect.Value) error {
-	len := reflect.TypeOf(in).NumField()
-	bw.WriteBeUint32(uint32(len))
-	if len <= 0 {
+	length := reflect.TypeOf(in).NumField()
+	bw.WriteBeUint32(uint32(length))
+	if length <= 0 {
 		return nil
 	}
 	bw.WriteBool(false)

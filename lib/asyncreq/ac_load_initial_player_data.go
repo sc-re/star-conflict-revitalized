@@ -20,8 +20,6 @@ type pveModifierEntry struct {
 	name string
 }
 
-type unlimPveMission map[string]int32
-
 type ac_load_initial_player_data_req struct {
 	lang string
 }
@@ -63,7 +61,7 @@ func battlePassPlayerData(bw *bitwriter.Writer) {
 		timeStamp uint64
 		idk       []uint16
 	}
-	idk := []somethingTimed{}
+	var idk []somethingTimed
 	bw.WriteBeUint32(uint32(len(idk)))
 	for _, v := range idk {
 		bw.WriteBeUint64(v.timeStamp)
@@ -208,7 +206,9 @@ func (req *ac_load_initial_player_data_req) response() ([]byte, error) {
 	bw.WriteBeInt32(1480) // account exp
 	bw.WriteBool(false)   // idk
 	bw.WriteBeUint32(0)   // leading_advert (variantdict, send as empty for now)
-	unlimPveMissionLevel(bw)
+	if err := unlimPveMissionLevel(bw); err != nil {
+		return nil, err
+	}
 	// idk
 	bw.WriteBeInt32(1)
 	bw.WriteBeInt32(1)
