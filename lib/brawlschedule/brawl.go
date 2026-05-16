@@ -1,7 +1,6 @@
 package brawlschedule
 
 import (
-	"log/slog"
 	"net"
 	"starconflict/lib/bitwriter"
 	"starconflict/lib/protocol"
@@ -18,48 +17,35 @@ type brawl_schedule_entry struct {
 	name     string
 }
 
-func ScmdBrawlSchedule() ([]byte, error) {
+func ScmdBrawlSchedule() []byte {
 	bw := bitwriter.NewWriter(make([]byte, 0, 250))
-	if err := BwScmdBrawlSchedule(bw); err != nil {
-		return nil, err
-	}
-	return bw.ReturnSlice(), nil
+	BwScmdBrawlSchedule(bw)
+	return bw.ReturnSlice()
 }
 
 // Original Server currently just return 28 times the same data
-func BwScmdBrawlSchedule(bw *bitwriter.Writer) error {
+func BwScmdBrawlSchedule(bw *bitwriter.Writer) {
 	entry := brawl_schedule_entry{
 		schedule: []intPair{{1, 2}, {9, 10}, {15, 16}, {17, 18}, {19, 20}, {21, 22}},
 		name:     "gtdm",
 	}
 	for range 28 {
-		if err := bw.WriteBeUint32(uint32(len(entry.schedule))); err != nil {
-			return err
-		}
+		bw.WriteBeUint32(uint32(len(entry.schedule)))
 
 		for _, s := range entry.schedule {
-			if err := bw.WriteBeUint32(s.a); err != nil {
-				return err
-			}
-
-			if err := bw.WriteBeUint32(s.b); err != nil {
-				return err
-			}
-
+			bw.WriteBeUint32(s.a)
+			bw.WriteBeUint32(s.b)
 		}
-		if err := bw.WriteCString(entry.name); err != nil {
-			return err
-		}
-
+		bw.WriteCString(entry.name)
 	}
-	return nil
 }
 
 func SendScmdBrawlSchedule(conn net.Conn) {
-	resp, err := ScmdBrawlSchedule()
-	if err != nil {
-		slog.Error("Failed to create ScmdBrawlSchedule", "error", err)
-		return
-	}
+	resp := ScmdBrawlSchedule()
+	/*
+		if err != nil {
+			slog.Error("Failed to create ScmdBrawlSchedule", "error", err)
+			return
+		}*/
 	conn.Write(protocol.MakeMessage(types.SCMD_BRAWL_SCHEDULE, 0, 0, resp))
 }

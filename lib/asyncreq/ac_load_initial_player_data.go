@@ -162,23 +162,11 @@ func pveModifiers(bw *bitwriter.Writer) error {
 		{a: 164, b: 164, name: "pve_raid"},
 		{a: 166, b: 166, name: "s8256_pve_raid_planetoid"},
 	}
-	if err := bw.WriteBeUint32(uint32(len(data))); err != nil {
-		return err
-	}
-
+	bw.WriteBeUint32(uint32(len(data)))
 	for _, v := range data {
-		if err := bw.WriteBeUint32(v.a); err != nil {
-			return err
-		}
-
-		if err := bw.WriteBeUint32(v.b); err != nil {
-			return err
-		}
-
-		if err := bw.WriteCString(v.name); err != nil {
-			return nil
-		}
-
+		bw.WriteBeUint32(v.a)
+		bw.WriteBeUint32(v.b)
+		bw.WriteCString(v.name)
 	}
 	return nil
 }
@@ -186,70 +174,27 @@ func pveModifiers(bw *bitwriter.Writer) error {
 func (req *ac_load_initial_player_data_req) response() ([]byte, error) {
 	resp := make([]byte, 0, 250000)
 	bw := bitwriter.NewWriter(resp)
-	if err := bw.WriteBeUint16(uint16(types.AC_LOAD_INITIAL_PLAYER_DATA)); err != nil {
-		return nil, err
-	}
+	bw.WriteBeUint16(uint16(types.AC_LOAD_INITIAL_PLAYER_DATA))
 
-	if err := bw.WriteBeUint64(1); err != nil { // Profile Revision
-		return nil, err
-	}
-	// Format Version
-	if err := bw.WriteBeUint32(1); err != nil {
-		return nil, err
-	}
-	// idk
-	if err := bw.WriteBool(false); err != nil {
-		return nil, err
-	}
-
-	// head account field, jk idk
-	if err := bw.WriteBeUint32(1); err != nil {
-		return nil, err
-	}
-	// idk
-	if err := bw.WriteBool(false); err != nil {
-		return nil, err
-	}
-	// moar zeros
-	if err := bw.WriteBeUint64(0); err != nil {
-		return nil, err
-	}
-	if err := bw.WriteCString(""); err != nil {
-		return nil, err
-	}
-	// Steam DLC count
-	if err := bw.WriteBeUint32(0); err != nil {
-		return nil, err
-	}
-	// Gaijin DLC count
-	if err := bw.WriteBeUint32(0); err != nil {
-		return nil, err
-	}
-	// Owned DLCs count
-	if err := bw.WriteBeUint32(0); err != nil {
-		return nil, err
-	}
-
+	bw.WriteBeUint64(1) // Account Revision
+	bw.WriteBeUint32(1) // Format version
+	bw.WriteBool(false) // idk
+	bw.WriteBeUint32(1) // head account field, jk idk
+	bw.WriteBool(false) // idk
+	bw.WriteBeUint64(0) // moar zeros
+	bw.WriteCString("")
+	bw.WriteBeUint32(0) // Steam DLC count
+	bw.WriteBeUint32(0) // Gaijin DLC count
+	bw.WriteBeUint32(0) // Owned DLCs count
 	if err := pveModifiers(bw); err != nil {
 		return nil, err
 	}
-
 	// Unnamed/Empty brawl schedule thingie
-	if err := bw.WriteBeUint32(1); err != nil {
-		return nil, err
-	}
-	if err := bw.WriteBeUint32(17); err != nil {
-		return nil, err
-	}
-	if err := bw.WriteBeUint32(18); err != nil {
-		return nil, err
-	}
-	if err := bw.WriteCString(""); err != nil {
-		return nil, err
-	}
-	if err := brawlschedule.BwScmdBrawlSchedule(bw); err != nil {
-		return nil, err
-	}
+	bw.WriteBeUint32(1)
+	bw.WriteBeUint32(17)
+	bw.WriteBeUint32(18)
+	bw.WriteCString("")
+	brawlschedule.BwScmdBrawlSchedule(bw)
 	if err := rewardschedule.BwScmdRewardSchedule(bw); err != nil {
 		return nil, err
 	}
@@ -258,51 +203,34 @@ func (req *ac_load_initial_player_data_req) response() ([]byte, error) {
 	}
 	bw.WriteBeUint32(0)   // idk
 	bw.WriteBool(false)   // idk
-	bw.WriteByte(17)      // max unlocked vessel rank
-	bw.WriteByte(19)      // account rank
+	bw.BwWriteByte(17)    // max unlocked vessel rank
+	bw.BwWriteByte(19)    // account rank
 	bw.WriteBeInt32(1480) // account exp
 	bw.WriteBool(false)   // idk
 	bw.WriteBeUint32(0)   // leading_advert (variantdict, send as empty for now)
 	unlimPveMissionLevel(bw)
 	// idk
-	if err := bw.WriteBeInt32(1); err != nil {
-		return nil, err
-	}
-	if err := bw.WriteBeInt32(1); err != nil {
-		return nil, err
-	}
+	bw.WriteBeInt32(1)
+	bw.WriteBeInt32(1)
 
-	if err := bw.WriteBool(false); err != nil {
-		return nil, err
-	}
-	if err := bw.WriteBeInt32(-1); err != nil {
-		return nil, err
-	}
-	if err := bw.WriteBeUint64(0); err != nil {
-		return nil, err
-	}
+	bw.WriteBool(false)
+	bw.WriteBeInt32(-1)
+	bw.WriteBeUint64(0)
 	if err := leagueforbiddenequipment.BwScmdLeagueFrobiddenEquipment(bw); err != nil {
 		return nil, err
 	}
-	if err := battlepassactivation.BwScmdBattlePassActivation(bw); err != nil {
-		return nil, err
-	}
+	battlepassactivation.BwScmdBattlePassActivation(bw)
 	battlePassPlayerData(bw)
-	bw.WriteBeInt32(50)                        // idk
-	if err := bw.WriteBool(true); err != nil { // idk
-		return nil, err
-	}
+	bw.WriteBeInt32(50) // idk
+	bw.WriteBool(true)
 	if err := variantdict.BwMarshal(bw, getGamePlayMap()); err != nil {
 		return nil, err
 	}
 	// SCMD_ZONES_WITH_DISABLED_QUESTS (65bytes)
-	bw.WriteByte(0)
+	bw.BwWriteByte(0)
 	for range 8 {
-		if err := bw.WriteBeUint64(0); err != nil {
-			return nil, err
-		}
+		bw.WriteBeUint64(0)
 	}
-
 	return bw.ReturnSlice(), nil
 }
 

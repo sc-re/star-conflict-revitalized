@@ -14,7 +14,7 @@ type ac_vessel_strip_improper_battle_req struct{}
 func (req *ac_vessel_strip_improper_battle_req) response() ([]byte, error) {
 	bw := bitwriter.NewWriter(make([]byte, 0, 8))
 	bw.WriteBeUint16(uint16(types.AC_VESSEL_STRIP_IMPROPER_BATTLE))
-	bw.WriteByte(0)     // status
+	bw.BwWriteByte(0)   // status
 	bw.WriteBool(false) // has vessel
 	bw.WriteBeUint32(0)
 	return bw.ReturnSlice(), nil

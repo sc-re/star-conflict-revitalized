@@ -1,46 +1,36 @@
 package battlepassactivation
 
 import (
-	"log/slog"
 	"net"
 	"starconflict/lib/bitwriter"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
 )
 
-func ScmdBattlePassActivation() ([]byte, error) {
+func ScmdBattlePassActivation() []byte {
 	bw := bitwriter.NewWriter(make([]byte, 0, 100))
-	if err := BwScmdBattlePassActivation(bw); err != nil {
-		return nil, err
-	}
-	return bw.ReturnSlice(), nil
+	BwScmdBattlePassActivation(bw)
+	return bw.ReturnSlice()
 }
 
-func BwScmdBattlePassActivation(bw *bitwriter.Writer) error {
-	if err := bw.WriteBeUint64(1772168400000); err != nil {
-		return err
-	}
+func BwScmdBattlePassActivation(bw *bitwriter.Writer) {
+	bw.WriteBeUint64(1772168400000)
 	battlePassCount := uint16(3)
-	if err := bw.WriteBeUint16(battlePassCount); err != nil {
-		return err
-	}
+	bw.WriteBeUint16(battlePassCount)
 	for i := range battlePassCount {
-		if err := bw.WriteBeUint16(i); err != nil {
-			return err
-		}
-		if err := bw.WriteBeUint64(1780376400000); err != nil {
-			return err
-		}
+		bw.WriteBeUint16(i)
+		bw.WriteBeUint64(1780376400000)
 
 	}
-	return nil
 }
 
 func SendScmdBattlePassActivation(conn net.Conn) {
-	resp, err := ScmdBattlePassActivation()
-	if err != nil {
-		slog.Error("Failed to create ScmdBattlePassActivation", "error", err)
-	}
+	resp := ScmdBattlePassActivation()
+	/*
+		if err != nil {
+			slog.Error("Failed to create ScmdBattlePassActivation", "error", err)
+		}
+	*/
 	conn.Write(protocol.MakeMessage(types.SCMD_BATTLE_PASS_ACTIVATION, 0, 0, resp))
 
 }

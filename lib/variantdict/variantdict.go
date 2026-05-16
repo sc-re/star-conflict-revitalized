@@ -49,18 +49,14 @@ func BwMarshal(bw *bitwriter.Writer, in any) error {
 
 func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
 	len := in.Len()
-	if err := bw.WriteBeUint32(uint32(len)); err != nil {
-		return err
-	}
+	bw.WriteBeUint32(uint32(len))
 	if len <= 0 {
 		return nil
 	}
 	bw.WriteBool(false)
 	iter := in.MapRange()
 	for iter.Next() {
-		if err := bw.WriteCString(iter.Key().String()); err != nil {
-			return err
-		}
+		bw.WriteCString(iter.Key().String())
 		if err := writeValue(bw, iter.Value()); err != nil {
 			return err
 		}
@@ -70,9 +66,7 @@ func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
 
 func writeDict(bw *bitwriter.Writer, in reflect.Value) error {
 	len := reflect.TypeOf(in).NumField()
-	if err := bw.WriteBeUint32(uint32(len)); err != nil {
-		return err
-	}
+	bw.WriteBeUint32(uint32(len))
 	if len <= 0 {
 		return nil
 	}
@@ -80,13 +74,10 @@ func writeDict(bw *bitwriter.Writer, in reflect.Value) error {
 	for field := range in.Type().Fields() {
 		tag := field.Tag.Get("variantdict")
 		key := field.Name
-		if err := writeStringKey(bw, key, tag); err != nil {
-			return err
-		}
+		writeStringKey(bw, key, tag)
 		if err := writeValue(bw, in.FieldByIndex(field.Index)); err != nil {
 			return err
 		}
-
 	}
 	return nil
 }
@@ -103,7 +94,7 @@ func writeSlice(bw *bitwriter.Writer, in reflect.Value) error {
 	return nil
 }
 
-func writeStringKey(bw *bitwriter.Writer, key string, tag string) error {
+func writeStringKey(bw *bitwriter.Writer, key string, tag string) {
 	if tag != "" {
 		bw.WriteCString(tag)
 	} else {
@@ -111,7 +102,6 @@ func writeStringKey(bw *bitwriter.Writer, key string, tag string) error {
 		runes[0] = unicode.ToLower(runes[0])
 		bw.WriteCString(string(runes))
 	}
-	return nil
 }
 
 func writeIntKey(bw *bitwriter.Writer, key uint32) error {
@@ -122,25 +112,15 @@ func writeValue(bw *bitwriter.Writer, v reflect.Value) error {
 	kind := v.Kind()
 	switch kind {
 	case reflect.Bool:
-		if err := writeBool(bw, v.Bool()); err != nil {
-			return err
-		}
+		writeBool(bw, v.Bool())
 	case reflect.Int32:
-		if err := writeInt32(bw, int32(v.Int())); err != nil {
-			return err
-		}
+		writeInt32(bw, int32(v.Int()))
 	case reflect.Uint64:
-		if err := writeUint64(bw, v.Uint()); err != nil {
-			return err
-		}
+		writeUint64(bw, v.Uint())
 	case reflect.Float32:
-		if err := writeFloat32(bw, float32(v.Float())); err != nil {
-			return err
-		}
+		writeFloat32(bw, float32(v.Float()))
 	case reflect.String:
-		if err := writeString(bw, v.String()); err != nil {
-			return err
-		}
+		writeString(bw, v.String())
 	case reflect.Slice:
 		if err := writeSlice(bw, v); err != nil {
 			return err
@@ -159,50 +139,28 @@ func writeValue(bw *bitwriter.Writer, v reflect.Value) error {
 	return nil
 }
 
-func writeInt32(bw *bitwriter.Writer, v int32) error {
-	if err := bw.WriteByte(byte(tagI32)); err != nil {
-		return err
-	}
-	if err := bw.WriteBeInt32(v); err != nil {
-		return err
-	}
-	return nil
+func writeInt32(bw *bitwriter.Writer, v int32) {
+	bw.BwWriteByte(byte(tagI32))
+	bw.WriteBeInt32(v)
 }
 
-func writeUint64(bw *bitwriter.Writer, v uint64) error {
-	if err := bw.WriteByte(byte(tagU64)); err != nil {
-		return err
-	}
-	if err := bw.WriteBeUint64(v); err != nil {
-		return err
-	}
-	return nil
+func writeUint64(bw *bitwriter.Writer, v uint64) {
+	bw.BwWriteByte(byte(tagU64))
+	bw.WriteBeUint64(v)
 }
 
-func writeFloat32(bw *bitwriter.Writer, v float32) error {
-	if err := bw.WriteByte(byte(tagF32)); err != nil {
-		return err
-	}
-	if err := bw.WriteFloat32(v); err != nil {
-		return err
-	}
-	return nil
+func writeFloat32(bw *bitwriter.Writer, v float32) {
+	bw.BwWriteByte(byte(tagF32))
+	bw.WriteFloat32(v)
 }
 
-func writeString(bw *bitwriter.Writer, v string) error {
-	if err := bw.WriteByte(byte(tagStr)); err != nil {
-		return err
-	}
-	if err := bw.WriteCString(v); err != nil {
-		return err
-	}
-	return nil
+func writeString(bw *bitwriter.Writer, v string) {
+	bw.BwWriteByte(byte(tagStr))
+	bw.WriteCString(v)
 }
 
 func writeNestedMap(bw *bitwriter.Writer, v reflect.Value) error {
-	if err := bw.WriteByte(byte(tagDict)); err != nil {
-		return err
-	}
+	bw.BwWriteByte(byte(tagDict))
 	if err := writeMap(bw, v); err != nil {
 		return err
 	}
@@ -210,21 +168,14 @@ func writeNestedMap(bw *bitwriter.Writer, v reflect.Value) error {
 }
 
 func writeNestedDict(bw *bitwriter.Writer, v reflect.Value) error {
-	if err := bw.WriteByte(byte(tagDict)); err != nil {
-		return err
-	}
+	bw.BwWriteByte(byte(tagDict))
 	if err := writeDict(bw, v); err != nil {
 		return err
 	}
 	return nil
 }
 
-func writeBool(bw *bitwriter.Writer, v bool) error {
-	if err := bw.WriteByte(byte(tagBool)); err != nil {
-		return err
-	}
-	if err := bw.WriteBool(v); err != nil {
-		return err
-	}
-	return nil
+func writeBool(bw *bitwriter.Writer, v bool) {
+	bw.BwWriteByte(byte(tagBool))
+	bw.WriteBool(v)
 }

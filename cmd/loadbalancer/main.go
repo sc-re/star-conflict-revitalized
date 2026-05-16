@@ -60,12 +60,12 @@ func buildCvarsBody(cvarsMap *CvarsMap) []byte {
 		bw.WriteBool(false)
 		bw.WriteBool(false)
 		bw.WriteBool(false)
-		bw.WriteByte(0x2)
+		bw.BwWriteByte(0x2)
 		ev := encodeCvarFloat(v)
 		bw.WriteBeUint16(ev)
 		bw.WriteBeUint16(0x00)
 	}
-	bw.WriteByte(0x00)
+	bw.BwWriteByte(0x00)
 	return bw.ReturnSlice()
 }
 
@@ -73,7 +73,7 @@ func buildCvarsBody(cvarsMap *CvarsMap) []byte {
 func buildShardBody(shardIP string, shardPort uint16, chatIP string, chatPort uint16) []byte {
 	bw := bitwriter.NewWriter(make([]byte, 0, 40))
 	bw.WriteBool(true)
-	bw.WriteByte(1)
+	bw.BwWriteByte(1)
 	bw.WriteCString(shardIP)
 	bw.WriteBeUint16(shardPort)
 	bw.WriteBool(true)
