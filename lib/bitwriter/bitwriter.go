@@ -1,6 +1,7 @@
 package bitwriter
 
 import (
+	"math"
 	"slices"
 )
 
@@ -76,6 +77,11 @@ func (bw *Writer) WriteBeUint32(u uint32) error {
 func (bw *Writer) WriteBeUint16(u uint16) error {
 	bw.WriteByte(byte(u >> 8))
 	bw.WriteByte(byte(u))
+	return nil
+}
+
+func (bw *Writer) WriteFloat32(f float32) error {
+	bw.WriteBeUint32(math.Float32bits(f))
 	return nil
 }
 

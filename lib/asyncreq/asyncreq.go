@@ -21,6 +21,8 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, conn net.Conn
 		handle_ac_universe_get(body, seq, hdr.Sequence, conn)
 	case types.AC_ZONES_LUA_ACTIVE_EVENTS_UPDATE:
 		handle_ac_zones_lua_active_events_update(body, seq, hdr.Sequence, conn)
+	case types.AC_LOAD_INITIAL_PLAYER_DATA:
+		handle_ac_load_initial_player_data(body, seq, hdr.Sequence, conn)
 	default:
 		slog.Warn("Unhandled AsyncReq", "AsyncType", actype)
 	}

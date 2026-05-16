@@ -23,21 +23,28 @@ const (
 
 func Marshal(in any) ([]byte, error) {
 	bw := bitwriter.NewWriter(make([]byte, 0, 100))
+	if err := BwMarshal(bw, in); err != nil {
+		return nil, err
+	}
+	return bw.ReturnSlice(), nil
+}
+
+func BwMarshal(bw *bitwriter.Writer, in any) error {
 	t := reflect.ValueOf(in)
 	kind := t.Kind()
 	switch kind {
 	case reflect.Struct:
 		if err := writeDict(bw, t); err != nil {
-			return nil, err
+			return err
 		}
 	case reflect.Map:
 		if err := writeMap(bw, t); err != nil {
-			return nil, err
+			return err
 		}
 	default:
-		return nil, fmt.Errorf("expected on of struct or map, got %s", t.Kind())
+		return fmt.Errorf("expected on of struct or map, got %s", t.Kind())
 	}
-	return bw.ReturnSlice(), nil
+	return nil
 }
 
 func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
@@ -51,7 +58,7 @@ func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
 	bw.WriteBool(false)
 	iter := in.MapRange()
 	for iter.Next() {
-		if err := writeStringKey(bw, iter.Key().String(), ""); err != nil {
+		if err := bw.WriteCString(iter.Key().String()); err != nil {
 			return err
 		}
 		if err := writeValue(bw, iter.Value()); err != nil {
@@ -77,7 +84,7 @@ func writeDict(bw *bitwriter.Writer, in reflect.Value) error {
 			return err
 		}
 		if err := writeValue(bw, in.FieldByIndex(field.Index)); err != nil {
-			return nil
+			return err
 		}
 
 	}
@@ -126,6 +133,10 @@ func writeValue(bw *bitwriter.Writer, v reflect.Value) error {
 		if err := writeUint64(bw, v.Uint()); err != nil {
 			return err
 		}
+	case reflect.Float32:
+		if err := writeFloat32(bw, float32(v.Float())); err != nil {
+			return err
+		}
 	case reflect.String:
 		if err := writeString(bw, v.String()); err != nil {
 			return err
@@ -135,7 +146,11 @@ func writeValue(bw *bitwriter.Writer, v reflect.Value) error {
 			return err
 		}
 	case reflect.Struct:
-		if err := writeDict(bw, v); err != nil {
+		if err := writeNestedDict(bw, v); err != nil {
+			return err
+		}
+	case reflect.Map:
+		if err := writeNestedMap(bw, v); err != nil {
 			return err
 		}
 	default:
@@ -164,6 +179,16 @@ func writeUint64(bw *bitwriter.Writer, v uint64) error {
 	return nil
 }
 
+func writeFloat32(bw *bitwriter.Writer, v float32) error {
+	if err := bw.WriteByte(byte(tagF32)); err != nil {
+		return err
+	}
+	if err := bw.WriteFloat32(v); err != nil {
+		return err
+	}
+	return nil
+}
+
 func writeString(bw *bitwriter.Writer, v string) error {
 	if err := bw.WriteByte(byte(tagStr)); err != nil {
 		return err
@@ -174,11 +199,21 @@ func writeString(bw *bitwriter.Writer, v string) error {
 	return nil
 }
 
-func writeStruct(bw *bitwriter.Writer, v any) error {
+func writeNestedMap(bw *bitwriter.Writer, v reflect.Value) error {
 	if err := bw.WriteByte(byte(tagDict)); err != nil {
 		return err
 	}
-	if err := bw.WriteBool(false); err != nil {
+	if err := writeMap(bw, v); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeNestedDict(bw *bitwriter.Writer, v reflect.Value) error {
+	if err := bw.WriteByte(byte(tagDict)); err != nil {
+		return err
+	}
+	if err := writeDict(bw, v); err != nil {
 		return err
 	}
 	return nil
