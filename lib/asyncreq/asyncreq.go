@@ -23,6 +23,28 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, conn net.Conn
 		handle_ac_zones_lua_active_events_update(body, seq, hdr.Sequence, conn)
 	case types.AC_LOAD_INITIAL_PLAYER_DATA:
 		handle_ac_load_initial_player_data(body, seq, hdr.Sequence, conn)
+	case types.AC_LOBBY_INFO:
+		handle_ac_lobby_info(body, seq, hdr.Sequence, conn)
+	case types.AC_CLAN_REQUEST_DESC:
+		handle_ac_clan_request_desc(body, seq, hdr.Sequence, conn)
+	case types.AC_FRIENDS_SEND_REQUEST:
+		handle_ac_friends_send_request(body, seq, hdr.Sequence, conn)
+	case types.AC_LEADERBOARD_GET_DESCS:
+		handle_ac_leaderboard_get_desc(body, seq, hdr.Sequence, conn)
+	case types.AC_TEACHING_LIST:
+		handle_ac_teaching_list(body, seq, hdr.Sequence, conn)
+	case types.AC_QUESTS:
+		handle_ac_quests(body, seq, hdr.Sequence, conn)
+	case types.AC_ADVENTURES:
+		handle_ac_adventures(body, seq, hdr.Sequence, conn)
+	case types.AC_SQUAD_INFO:
+		handle_ac_squad_info(body, seq, hdr.Sequence, conn)
+	case types.AC_LEAGUE_TEAM_INFO:
+		handle_ac_league_team_info(body, seq, hdr.Sequence, conn)
+	case types.AC_MAIL_GET:
+		handle_ac_mail_get(body, seq, hdr.Sequence, conn)
+	case types.AC_USER_NOTES:
+		handle_ac_user_notes(body, seq, hdr.Sequence, conn)
 	default:
 		slog.Warn("Unhandled AsyncReq", "AsyncType", actype)
 	}
