@@ -65,7 +65,7 @@ func writeMap(bw *bitwriter.Writer, in reflect.Value) error {
 }
 
 func writeDict(bw *bitwriter.Writer, in reflect.Value) error {
-	length := reflect.TypeOf(in).NumField()
+	length := in.NumField()
 	bw.WriteBeUint32(uint32(length))
 	if length <= 0 {
 		return nil
