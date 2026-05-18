@@ -45,6 +45,8 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, conn net.Conn
 		handle_ac_mail_get(body, seq, hdr.Sequence, conn)
 	case types.AC_USER_NOTES:
 		handle_ac_user_notes(body, seq, hdr.Sequence, conn)
+	case types.AC_USER_PROFILE_GET:
+		handle_ac_user_profile_get(body, seq, hdr.Sequence, conn)
 	default:
 		slog.Warn("Unhandled AsyncReq", "AsyncType", actype)
 	}
