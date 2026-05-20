@@ -25,7 +25,7 @@ func (req *ac_vessel_strip_improper_battle_req) response() ([]byte, error) {
 func Send_ac_vessel_strip_improper_battle(conn net.Conn) {
 	// TODO: Figure out what should trigger this
 	// Maybe the first time after the client request AC_UNIVERSE_GET?
-	time.Sleep(3 * time.Second)
+	time.Sleep(5 * time.Second)
 	req := ac_vessel_strip_improper_battle_req{}
 	resp, _ := req.response()
 	log.Printf("Resp: ac_vessel_strip_improper_battle[]")
