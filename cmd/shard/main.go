@@ -11,6 +11,7 @@ import (
 
 	"starconflict/lib/asyncreq"
 	"starconflict/lib/auth"
+	"starconflict/lib/cmdstore"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
 
@@ -84,16 +85,21 @@ func (session *session) handleMainLoop() error {
 			// TODO: Do something
 			continue
 		}
-		if hdr.CommandType == types.CSCMD_ASYNC_REQ {
+		switch hdr.CommandType {
+		case types.CSCMD_ASYNC_REQ:
 			session.seq += 1
 			go asyncreq.HandleAsyncReq(hdr, body, session.seq, session.conn, session.uid)
 			continue
-		}
-		if hdr.CommandType == types.SCMD_KEEP_ALIVE {
+		case types.SCMD_KEEP_ALIVE:
 			log.Printf("Recieved SCMD_KEEP_ALIVE")
 			// TODO: Keep Alive
 			continue
+		case types.CCMD_STORE:
+			session.seq += 1
+			go cmdstore.HandleCCmdStore(hdr, body, session.seq, session.conn)
+			continue
 		}
+
 		log.Printf("Unhandled message of type: %s", hdr.CommandType)
 	}
 }
@@ -134,7 +140,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, slogOptions))
 	slog.SetDefault(logger)
 
-	db, err := sqlx.Connect("sqlite3", "sc.db?cache=shared&mode=memory")
+	db, err := sqlx.Connect("sqlite3", "/home/john/Projects/star-conflict-revitalized/sc.db?cache=shared&mode=memory")
 	if err != nil {
 		log.Fatalf("Failed to connect to databse %v", err)
 	}
