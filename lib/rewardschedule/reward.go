@@ -24,9 +24,11 @@ func ScmdRewardSchedule() ([]byte, error) {
 }
 
 func BwScmdRewardSchedule(bw *bitwriter.Writer) error {
-	rewards := map[string]rewardScheduleEntry{
-		"0": {GoldReward: 10.0, HourBegin: 13.0, HourEnd: 24.0},
-		"1": {GoldReward: 10.0, HourBegin: 0.0, HourEnd: 1.0},
+	// Outer key: day (0 = Monday)
+	// Inner key, array index
+	rewards := map[string]map[string]rewardScheduleEntry{
+		"0": {"1": {GoldReward: 10.0, HourBegin: 13.0, HourEnd: 24.0}},
+		"1": {"1": {GoldReward: 10.0, HourBegin: 0.0, HourEnd: 1.0}},
 	}
 	err := variantdict.BwMarshal(bw, rewards)
 	return err
