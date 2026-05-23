@@ -66,8 +66,190 @@ func (req *ccmdStoreReq) parse(body []byte) {
 	}
 }
 
+type goldPack struct {
+	hidden       bool
+	value        uint32
+	idk          uint32
+	licenseHours uint32
+	weight       float32
+	guid         string
+	storeUrl     string
+	arcCost      float32
+	displayPrice float32
+	idkCost      float32
+	lang         string
+	// ...
+}
+
+type creditPack struct {
+	price      uint32
+	value      uint32
+	bonusValue uint32
+	name       string
+}
+
+func reditPacks() []creditPack {
+	return []creditPack{
+		{20, 140000, 0, "TinyCreditPack"},
+		{100, 702000, 38000, "SmallCreditPack"},
+		{1000, 7000000, 700000, "MediumCreditPack"},
+		{2500, 17500000, 2400000, "BigCreditPack"},
+		{5000, 35000000, 6200000, "HudgeCreditPack"},
+		{10000, 70000000, 17500000, "GreatCreditPack"},
+	}
+}
+
+func writeIdkTable(bw *bitwriter.Writer) {
+	table := [][3]uint32{
+		{75, 25000, 0},
+		{100, 25000, 0},
+		{125, 50000, 0},
+		{150, 75000, 0},
+		{200, 100000, 0},
+		{250, 100000, 0},
+		{300, 100000, 0},
+		{350, 100000, 0},
+		{400, 200000, 0},
+		{450, 200000, 0},
+		{500, 300000, 0},
+		{550, 300000, 0},
+		{600, 400000, 0},
+		{650, 400000, 0},
+		{700, 500000, 0},
+		{750, 500000, 0},
+		{800, 600000, 0},
+		{850, 600000, 0},
+		{900, 700000, 0},
+		{950, 700000, 0},
+		{1000, 800000, 0},
+		{1050, 800000, 0},
+		{1100, 900000, 0},
+		{1300, 1500000, 0},
+		{1500, 2000000, 0},
+		{1750, 3000000, 0},
+		{2000, 4000000, 0},
+		{2250, 5000000, 0},
+		{2500, 6000000, 0},
+		{2750, 0, 30000},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295}}
+	for _, v := range table {
+		for _, i := range v {
+			bw.WriteBeUint32(i)
+		}
+	}
+}
+
+func writeIdkOtherTable(bw *bitwriter.Writer) {
+	table := [][3]uint32{
+		{20, 1000000, 0},
+		{30, 2000000, 0},
+		{40, 4000000, 0},
+		{50, 8000000, 0},
+		{60, 10000000, 0},
+		{70, 15000000, 0},
+		{80, 20000000, 0},
+		{90, 30000000, 0},
+		{100, 40000000, 0},
+		{110, 60000000, 0},
+		{120, 80000000, 0},
+		{130, 100000000, 0},
+		{140, 150000000, 0},
+		{150, 200000000, 0},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+		{0, 4294967295, 4294967295},
+	}
+	for _, v := range table {
+		for _, i := range v {
+			bw.WriteBeUint32(i)
+		}
+	}
+}
+
 func typeThreeResponse() []byte {
-	return nil
+	bw := bitwriter.NewWriter(make([]byte, 0, 27110))
+	bw.BwWriteByte(3)
+	bw.WriteBeUint32(10000) // idk
+	bw.WriteCString("'Bundle_Chest_Gold_Reward'")
+	bw.WriteBeUint32(400)
+	bw.WriteBeUint32(1000)
+	bw.WriteFloat32(0.10000000149011612)
+	bw.WriteFloat32(0.5)
+	bw.WriteFloat32(0.0005499999970197678)
+	packs := reditPacks()
+	bw.WriteBeUint32(uint32(len(packs)))
+	for _, v := range packs {
+		bw.WriteBeUint32(v.price)
+		bw.WriteBeUint32(v.value)
+		bw.WriteBeUint32(v.bonusValue)
+		bw.WriteCString(v.name)
+	}
+	bw.WriteBeUint32(0)                  // gold packs count
+	bw.WriteFloat32(0.15000000596046448) // idk
+	bw.WriteFloat32(0.04000000283122063)
+	bw.WriteFloat32(0.02500000223517418)
+	bw.WriteFloat32(0.020000001415610313)
+	bw.WriteFloat32(0.06599999964237213)
+	bw.WriteFloat32(1.0)
+	bw.WriteBeUint32(3000)
+	bw.WriteBeUint32(500)
+	bw.WriteFloat32(2000)
+	writeIdkTable(bw)
+	writeIdkOtherTable(bw)
+	bw.BwWriteByte(1) // idk
+	bw.WriteFloat32(0.003333332948386669)
+	bw.WriteFloat32(1.0)
+	bw.WriteBeUint32(1500)
+	bw.WriteBeUint32(1000)
+	bw.WriteBeUint32(1000)
+	bw.WriteFloat32(0.0)
+	arr := []uint32{1000000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500}
+	for _, v := range arr {
+		bw.WriteBeUint32(v)
+	}
+	arr = []uint32{1000000, 3000000, 3000000, 3000000, 3000000, 3000000, 1000000, 1000000, 1000000, 1000000, 1000000, 1000000, 1000000, 1000000}
+	for _, v := range arr {
+		bw.WriteBeUint32(v)
+	}
+	sarr := []uint32{2, 1, 2, 2, 200000, 2, 5}
+	for _, v := range sarr {
+		bw.WriteBeUint32(v)
+	}
+	bw.WriteFloat32(95.0)
+	bw.WriteFloat32(45.0)
+	for range 25 {
+		bw.WriteBeUint32(0)
+		bw.WriteBeUint32(0)
+	}
+	bw.WriteFloat32(0.10000000149011612)
+	bw.WriteFloat32(0.800000011920929)
+	// three timestamps
+	bw.WriteBeUint64(1772168400000)
+	bw.WriteBeUint64(1780376400000)
+	bw.WriteBeUint64(1777525200000)
+	bw.WriteBeInt32(20000)
+	bw.WriteBool(false)
+	bw.WriteBeInt32(3)
+	bw.WriteBeInt32(2)
+	// XXX
+
+	return bw.ReturnSlice()
 }
 
 func serializeStoreItem(si storeItem, bw *bitwriter.Writer) {
@@ -404,7 +586,8 @@ func HandleCCmdStore(hdr *protocol.Header, body []byte, seq uint16, conn net.Con
 		resp := typeTwoResponse()
 		conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
 	case 3:
-		slog.Error("Unhandled CCmdStore Type", "Store Type", req.store_type)
+		resp := typeThreeResponse()
+		conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
 	default:
 		slog.Error("Invalid CCmdStore Request", "Store Type", req.store_type)
 	}
