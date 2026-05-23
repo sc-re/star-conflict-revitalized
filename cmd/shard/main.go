@@ -75,6 +75,7 @@ func (session *session) handleMainLoop() error {
 	session.uid = 10
 	//go userprofilenotification.SendUserProfileNotificationOnlineState(session.conn, session.uid, userprofilenotification.USER_STATE_ONLINE)
 	go asyncreq.Send_ac_vessel_strip_improper_battle(session.conn)
+	go asyncreq.SendAcPlayerPush(session.conn)
 	for {
 		hdr, body, err := protocol.ParseNextMessage(session.conn)
 		_ = body

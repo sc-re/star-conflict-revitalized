@@ -6,7 +6,29 @@ import (
 	"net"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
+	"time"
 )
+
+func SendAcPlayerPush(conn net.Conn) {
+	time.Sleep(7 * time.Second)
+	Send_ac_player_autogen_inventory(conn)
+	Send_ac_player_credentials(conn)
+	Send_ac_player_credits(conn)
+	Send_ac_player_inventory(conn)
+	Send_ac_player_stats(conn)
+	Send_ac_player_vessels(conn)
+	Send_ac_get_fb_token(conn)
+	Send_ac_battle_slots(conn)
+	Send_ac_premium_info(conn)
+	Send_ac_get_userdata(conn)
+	Send_ac_rewarded_tutorials(conn)
+	Send_ac_obtain_referal_key(conn)
+	Send_ac_account_auras(conn)
+	Send_ac_get_blueprints(conn)
+	Send_ac_get_craft_resources(conn)
+	Send_ac_get_visited_free_space_zones(conn)
+	Send_ac_vessel_free_custom_elements(conn)
+}
 
 func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, conn net.Conn, uid uint64) {
 	actype := types.AsyncReqType(binary.BigEndian.Uint16(body))
