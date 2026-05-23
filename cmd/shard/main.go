@@ -13,6 +13,7 @@ import (
 	"starconflict/lib/auth"
 	"starconflict/lib/cmdstore"
 	"starconflict/lib/protocol"
+	"starconflict/lib/session"
 	"starconflict/lib/types"
 
 	"github.com/jmoiron/sqlx"
@@ -29,37 +30,26 @@ CREATE TABLE user (
 );
 `
 
-type session struct {
-	uid          uint64
-	sessionToken string
-	seq          uint16
-	conn         net.Conn
-	db           *sqlx.DB
-}
-
-func (session *session) handleAuthentication(connectionMap *sync.Map) error {
+func HandleAuthentication(session *session.Session, connectionMap *sync.Map) error {
 	key, group := auth.CreateClientChallenge()
-	session.seq += 1
-	if err := auth.SendChallenge(session.conn, key, session.seq); err != nil {
+	if err := auth.SendChallenge(session.Conn, key, session.GetNextSeq()); err != nil {
 		return err
 	}
 	for {
-		hdr, body, err := protocol.ParseNextMessage(session.conn)
+		hdr, body, err := protocol.ParseNextMessage(session.Conn)
 		if err != nil {
 			return err
 		}
 		if hdr.CommandType == types.CCMD_AUTH_REQUEST {
-			log.Printf("Got a %s", hdr.CommandType)
 			slog.Info("Recieved", "commandType", hdr.CommandType)
 			var valid bool
 			var disconnectReason types.MasterServerDisconnectReason
-			valid, session.uid, disconnectReason, err = auth.Authenticate(body, session.db, key, group)
+			valid, session.Uid, disconnectReason, err = auth.Authenticate(body, session.Db, key, group)
 			if valid {
-				session.seq += 1
-				auth.SendAuthAck(session.conn, session.db, session.seq, hdr.Sequence, session.uid)
-				connectionMap.Store(session.uid, session)
+				auth.SendAuthAck(session.Conn, session.Db, session.GetNextSeq(), hdr.Sequence, session.Uid)
+				connectionMap.Store(session.Uid, session)
 			} else {
-				session.conn.Write(protocol.MakeDisconnectMessage(disconnectReason))
+				session.Conn.Write(protocol.MakeDisconnectMessage(disconnectReason))
 			}
 			if err != nil {
 				slog.Warn("failed authentication", "error", err)
@@ -67,17 +57,16 @@ func (session *session) handleAuthentication(connectionMap *sync.Map) error {
 			}
 			return nil
 		}
-		log.Printf("Unhandled message of type: %s", hdr.CommandType)
+		slog.Warn("Unhandled message", "type", hdr.CommandType)
 	}
 }
 
-func (session *session) handleMainLoop() error {
-	session.uid = 10
+func HandleMainLoop(session *session.Session) error {
 	//go userprofilenotification.SendUserProfileNotificationOnlineState(session.conn, session.uid, userprofilenotification.USER_STATE_ONLINE)
-	go asyncreq.Send_ac_vessel_strip_improper_battle(session.conn)
-	go asyncreq.SendAcPlayerPush(session.conn)
+	go asyncreq.Send_ac_vessel_strip_improper_battle(session.Conn)
+	go asyncreq.SendAcPlayerPush(session)
 	for {
-		hdr, body, err := protocol.ParseNextMessage(session.conn)
+		hdr, body, err := protocol.ParseNextMessage(session.Conn)
 		_ = body
 		if err != nil {
 			return err
@@ -88,20 +77,18 @@ func (session *session) handleMainLoop() error {
 		}
 		switch hdr.CommandType {
 		case types.CSCMD_ASYNC_REQ:
-			session.seq += 1
-			go asyncreq.HandleAsyncReq(hdr, body, session.seq, session.conn, session.uid)
+			go asyncreq.HandleAsyncReq(hdr, body, session.GetNextSeq(), session)
 			continue
 		case types.SCMD_KEEP_ALIVE:
-			log.Printf("Recieved SCMD_KEEP_ALIVE")
+			slog.Warn("Recieved SCMD_KEEP_ALIVE")
 			// TODO: Keep Alive
 			continue
 		case types.CCMD_STORE:
-			session.seq += 1
-			go cmdstore.HandleCCmdStore(hdr, body, session.seq, session.conn)
+			go cmdstore.HandleCCmdStore(hdr, body, session.GetNextSeq(), session.Conn)
 			continue
 		}
 
-		log.Printf("Unhandled message of type: %s", hdr.CommandType)
+		slog.Warn("Unhandled message", "type", hdr.CommandType)
 	}
 }
 
@@ -113,14 +100,13 @@ func handle(conn net.Conn, db *sqlx.DB, connectionMap *sync.Map) {
 			debug.PrintStack()
 		}
 	}()
-	session := session{}
-	session.db = db
-	session.seq = 0
-	session.conn = conn
-	if err := session.handleAuthentication(connectionMap); err != nil {
+	session := session.Session{}
+	session.Db = db
+	session.Conn = conn
+	if err := HandleAuthentication(&session, connectionMap); err != nil {
 		return
 	}
-	session.handleMainLoop()
+	HandleMainLoop(&session)
 }
 
 func main() {

@@ -5,6 +5,7 @@ import (
 	"net"
 	"starconflict/lib/bitwriter"
 	"starconflict/lib/protocol"
+	"starconflict/lib/session"
 	"starconflict/lib/types"
 )
 
@@ -23,10 +24,10 @@ func (req *ac_player_autogen_inventory_req) response() []byte {
 	return bw.ReturnSlice()
 }
 
-func Send_ac_player_autogen_inventory(conn net.Conn) {
+func Send_ac_player_autogen_inventory(session *session.Session) {
 	req := ac_player_autogen_inventory_req{}
 	resp := req.response()
-	conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, 0, 0, resp))
+	session.Conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, 0, 0, resp))
 }
 
 func handle_ac_player_autogen_inventory(body []byte, seq uint16, seqRet uint16, conn net.Conn) {
