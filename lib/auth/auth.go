@@ -146,7 +146,7 @@ func Authenticate(body []byte, db *sqlx.DB, key *dhkx.DHKey, group *dhkx.DHGroup
 	}
 	err = auth.decryptPassword(group, key)
 	user := user{}
-	if err := db.Get(&user, "SELECT * FROM user WHERE mail=$1", auth.email); err != nil {
+	if err := db.Get(&user, "SELECT mail,nickname,uid,zone,password FROM user WHERE mail=$1", auth.email); err != nil {
 		return false, 0, types.DR_INVALID_LOGIN, err
 	}
 	valid := checkPassword(auth.password, user.Password)
