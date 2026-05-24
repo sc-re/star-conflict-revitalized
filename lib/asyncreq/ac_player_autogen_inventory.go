@@ -16,7 +16,7 @@ func (req *ac_player_autogen_inventory_req) parse(body []byte) error {
 }
 
 func (req *ac_player_autogen_inventory_req) response() []byte {
-	bw := bitwriter.NewWriter(make([]byte, 3000))
+	bw := bitwriter.NewWriter(make([]byte, 0, 3000))
 	bw.WriteBeUint16(uint16(types.AC_PLAYER_AUTOGEN_INVENTORY))
 	bw.WriteBeUint32(0)  // Item count
 	bw.BwWriteByte(1)    // Inventory level
