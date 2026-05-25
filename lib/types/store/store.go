@@ -1,0 +1,53 @@
+package store
+
+type CreditsType uint32
+
+const (
+	CreditsTypeInvalid CreditsType = iota
+	CreditsTypeCredits
+	CreditsTypeGold
+	CreditsTypeTokens
+	CreditsTypeEvent
+	CreditsTypeGold_buying_pts
+	CreditsTypeVessel_exp
+	CreditsTypeRace_rep
+	CreditsTypeNum
+)
+
+type StoreBuyResultType byte
+
+const (
+	StoreBuyResultOk StoreBuyResultType = iota
+	StoreBuyResultTimeout
+	StoreBuyResultIncorrectId
+	StoreBuyResultUnique
+	StoreBuyResultCantAfford
+	StoreBuyResultInventoryFull
+	StoreBuyResultInventoryFullVesselSpecific
+	StoreBuyResultResourceLimitReached
+	StoreBuyResultAccountRank
+	StoreBuyResultDependancy
+	StoreBuyResultTitle
+	StoreBuyResultNoDiscount
+	StoreBuyResultShipLocked
+	StoreBuyResultShipConserved
+	StoreBuyResultForbidden
+	StoreBuyResultBattleSlotsMaxed
+	StoreBuyResultHangarSlotsFull
+	StoreBuyResultInventoryExtFull
+	StoreBuyResultBundleContent
+	StoreBuyResultInDebt
+	StoreBuyResultNoSteamAccountAttached
+	StoreBuyResultSteamDeniedTransaction
+	StoreBuyResultNoArcAccountAttached
+	StoreBuyResultArcDeniedTransaction
+	StoreBuyResultArcAmountMismatch
+	StoreBuyResultNodeRequired
+	StoreBuyResultMaxUniqueModules
+	StoreBuyResultEventCreditsLimit
+	StoreBuyResultShipCurrentlyUnavailable
+	StoreBuyResultAutogenCantRemove
+	StoreBuyResultInvalidData
+	StoreBuyResultClanItemUnavailable
+	StoreBuyResultError
+)

@@ -2,10 +2,10 @@ package asyncreq
 
 import (
 	"log/slog"
-	"net"
 	"starconflict/lib/bitreader"
 	"starconflict/lib/bitwriter"
 	"starconflict/lib/protocol"
+	"starconflict/lib/session"
 	"starconflict/lib/types"
 )
 
@@ -121,10 +121,19 @@ func upfAvatarsWriter(bw *bitwriter.Writer, uid uint64) {
 	bw.WriteCString("Avatar_73")
 }
 
-func upfMottosWriter(bw *bitwriter.Writer, uid uint64) {
-	bw.WriteCString("Taunt_102")
-	bw.WriteBeUint16(1) // Unlocked Motto Count
-	bw.WriteCString("Taunt_102")
+func upfMottosWriter(bw *bitwriter.Writer, uid uint64, session *session.Session) {
+	mottos := []string{}
+	if err := session.Db.Select(&mottos, "SELECT motto FROM mottos WHERE uid=$1", uid); err != nil {
+		mottos = []string{}
+	}
+	activeMotto := ""
+	session.Db.Get(&activeMotto, "SELECT activeMotto FROM user WHERE uid=$1", uid)
+
+	bw.WriteCString(activeMotto)
+	bw.WriteBeUint16(uint16(len(mottos))) // Unlocked Motto Count
+	for _, motto := range mottos {
+		bw.WriteCString(motto)
+	}
 }
 
 func upfAtlasWriter(bw *bitwriter.Writer, uid uint64) {
@@ -174,7 +183,7 @@ func (req *ac_user_profile_get_req) parse(body []byte) error {
 	return nil
 }
 
-func (req *ac_user_profile_get_req) response() []byte {
+func (req *ac_user_profile_get_req) response(session *session.Session) []byte {
 	bw := bitwriter.NewWriter(make([]byte, 0, 2500))
 	bw.WriteBeUint16(uint16(types.AC_USER_PROFILE_GET))
 	bw.WriteBeUint16(uint16(len(req.profilesRequets))) // maybe only fill in in the end so we can drop uids if they don't exist, throw errors, idk?
@@ -218,7 +227,7 @@ func (req *ac_user_profile_get_req) response() []byte {
 		}
 		if v.flag&uint32(upfMottos) != 0 {
 			slog.Debug("Writing upfMottos", "uid", v.uid)
-			upfMottosWriter(bw, v.uid)
+			upfMottosWriter(bw, v.uid, session)
 		}
 		if v.flag&uint32(upfAtlas) != 0 {
 			slog.Debug("Writing upfAtlas", "uid", v.uid)
@@ -229,12 +238,12 @@ func (req *ac_user_profile_get_req) response() []byte {
 	return bw.ReturnSlice()
 }
 
-func handle_ac_user_profile_get(body []byte, seq uint16, seqRet uint16, conn net.Conn) {
+func handle_ac_user_profile_get(body []byte, seq uint16, seqRet uint16, session *session.Session) {
 	req := ac_user_profile_get_req{}
 	if err := req.parse(body[2:]); err != nil {
 		slog.Error("Failed to parse ac_user_profile_get_req", "error", err)
 	}
 	slog.Debug("Fetching profile data for profiles", "len", len(req.profilesRequets), "request", req)
-	resp := req.response()
-	conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, seq, seqRet, resp))
+	resp := req.response(session)
+	session.Conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, seq, seqRet, resp))
 }

@@ -84,7 +84,7 @@ func HandleMainLoop(session *session.Session) error {
 			// TODO: Keep Alive
 			continue
 		case types.CCMD_STORE:
-			go cmdstore.HandleCCmdStore(hdr, body, session.GetNextSeq(), session.Conn)
+			go cmdstore.HandleCCmdStore(hdr, body, session.GetNextSeq(), session)
 			continue
 		}
 

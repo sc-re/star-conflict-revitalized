@@ -68,7 +68,7 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, session *sess
 	case types.AC_USER_NOTES:
 		handle_ac_user_notes(body, seq, hdr.Sequence, session.Conn)
 	case types.AC_USER_PROFILE_GET:
-		handle_ac_user_profile_get(body, seq, hdr.Sequence, session.Conn)
+		handle_ac_user_profile_get(body, seq, hdr.Sequence, session)
 	case types.AC_GET_USERDATA:
 		handle_ac_get_userdata(body, seq, hdr.Sequence, session)
 	case types.AC_SET_USERDATA:
@@ -77,6 +77,8 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, session *sess
 		handle_ac_survey_get_new(body, seq, hdr.Sequence, session)
 	case types.AC_SURVEY_RESULTS:
 		handle_ac_survey_results(body, seq, hdr.Sequence, session)
+	case types.AC_BUY_ITEM:
+		handle_ac_buy_item(body, seq, hdr.Sequence, session)
 	default:
 		slog.Warn("Unhandled AsyncReq", "AsyncType", actype)
 	}

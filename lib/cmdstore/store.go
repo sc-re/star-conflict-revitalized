@@ -3,13 +3,20 @@ package cmdstore
 import (
 	"bytes"
 	"compress/flate"
-	_ "compress/zlib"
 	"encoding/binary"
 	"log/slog"
-	"net"
 	"starconflict/lib/bitwriter"
 	"starconflict/lib/protocol"
+	"starconflict/lib/session"
 	"starconflict/lib/types"
+	"sync"
+
+	"github.com/jmoiron/sqlx"
+)
+
+var (
+	catalog []byte
+	once    sync.Once
 )
 
 const (
@@ -18,51 +25,68 @@ const (
 
 type ccmdStoreReq struct {
 	store_type byte
-	idk        uint64
+	chunkCount uint16
+	idk        uint32
+	idk2       uint16
 }
 
-type itemType byte
+type ItemType byte
 
 const (
-	itemTypeVessel itemType = iota
-	itemTypeModule
-	itemTypeRocket
-	itemTypeDrug
-	itemTypeBundle
-	itemTypeResource
-	itemTypeBlueprint
-	itemTypeAvatar
-	itemTypeMotto
-	itemTypeJunk
+	ItemTypeVessel ItemType = iota
+	ItemTypeModule
+	ItemTypeRocket
+	ItemTypeDrug
+	ItemTypeBundle
+	ItemTypeResource
+	ItemTypeBlueprint
+	ItemTypeAvatar
+	ItemTypeMotto
+	ItemTypeJunk
 )
 
-type storeItem struct {
-	storeItemId         uint32
-	creditPrice         uint32
-	premiumPrice        uint32
-	tokenPrice          uint32
-	eventPrice          uint32
-	baseCreditsPrice    uint32
-	basePremiumPrice    uint32
-	baseTokenPrice      uint32
-	baseEventPrice      uint32
-	tradePrice          uint32
-	tradePremiumPrice   uint32
-	race                byte
-	requiredRank        uint32
-	stacks              bool
-	cantBeBought        bool
-	itemType            itemType
-	itemName            string
-	itemFlags           byte
-	requiredAccountAura string
-	deleteFromInventory bool
+type StoreItem struct {
+	StoreItemId         uint32   `db:"StoreItemId"`
+	CreditPrice         uint32   `db:"CreditPrice"`
+	PremiumPrice        uint32   `db:"PremiumPrice"`
+	TokenPrice          uint32   `db:"TokenPrice"`
+	EventPrice          uint32   `db:"EventPrice"`
+	BaseCreditsPrice    uint32   `db:"BaseCreditsPrice"`
+	BasePremiumPrice    uint32   `db:"BasePremiumPrice"`
+	BaseTokenPrice      uint32   `db:"BaseTokenPrice"`
+	BaseEventPrice      uint32   `db:"BaseEventPrice"`
+	TradePrice          uint32   `db:"TradePrice"`
+	TradePremiumPrice   uint32   `db:"TradePremiumPrice"`
+	Race                byte     `db:"Race"`
+	RequiredRank        uint32   `db:"RequiredRank"`
+	Stacks              bool     `db:"Stacks"`
+	CantBeBought        bool     `db:"CantBeBought"`
+	ItemType            ItemType `db:"ItemType"`
+	ItemName            string   `db:"ItemName"`
+	ItemFlags           byte     `db:"ItemFlags"`
+	RequiredAccountAura string   `db:"RequiredAccountAura"`
+	DeleteFromInventory bool     `db:"DeleteFromInventory"`
+}
+
+func initCatalogStore(db *sqlx.DB) {
+	once.Do(func() {
+		storeItems := []StoreItem{}
+		db.Select(&storeItems, "SELECT * FROM store")
+		tmp, _ := deflateStoreItems(storeItems)
+		catalog = tmp.Bytes()
+		slog.Debug("Fetched catalog from databse", "len(storeItems)", len(storeItems), "len(catalog)", len(catalog))
+	})
 }
 
 func (req *ccmdStoreReq) parse(body []byte) {
 	req.store_type = body[0]
-	if req.store_type == 2 {
-		req.idk = binary.BigEndian.Uint64(body[1:])
+	switch req.store_type {
+	case 1:
+		fallthrough
+	case 2:
+		req.chunkCount = binary.BigEndian.Uint16(body[1:])
+		req.idk = binary.BigEndian.Uint32(body[3:])
+		req.idk2 = binary.BigEndian.Uint16(body[7:])
 	}
 }
 
@@ -252,318 +276,334 @@ func typeThreeResponse() []byte {
 	return bw.ReturnSlice()
 }
 
-func serializeStoreItem(si storeItem, bw *bitwriter.Writer) {
-	bw.WriteBeUint32(si.storeItemId)
-	bw.WriteBeUint32(si.creditPrice)
-	bw.WriteBeUint32(si.premiumPrice)
-	bw.WriteBeUint32(si.tokenPrice)
-	bw.WriteBeUint32(si.eventPrice)
-	bw.WriteBeUint32(si.baseCreditsPrice)
-	bw.WriteBeUint32(si.basePremiumPrice)
-	bw.WriteBeUint32(si.baseTokenPrice)
-	bw.WriteBeUint32(si.baseEventPrice)
-	bw.WriteBeUint32(si.tradePrice)
-	bw.WriteBeUint32(si.tradePremiumPrice)
-	bw.BwWriteByte(si.race)
-	bw.WriteBeUint32(si.requiredRank)
-	bw.WriteBool(si.stacks)
-	bw.WriteBool(si.cantBeBought)
-	bw.BwWriteByte(byte(si.itemType))
-	bw.WriteCString(si.itemName)
-	bw.BwWriteByte(si.itemFlags)
-	bw.WriteCString(si.requiredAccountAura)
-	bw.WriteBool(si.deleteFromInventory)
-}
-
-func typeTwoResponse() []byte {
-	var tmp bytes.Buffer
-
-	entries := []storeItem{
-		{
-			storeItemId:         210170,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          2400,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      2400,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_09",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210169,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          2400,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      2400,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_08",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210168,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          2400,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      2400,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_07",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210167,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          600,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      600,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_06",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210166,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          600,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      600,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_05",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210165,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          900,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      900,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_04",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210164,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          640,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      640,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_03",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210163,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          200,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      200,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_02",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210162,
-			creditPrice:         0,
-			premiumPrice:        0,
-			tokenPrice:          150,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    0,
-			baseTokenPrice:      150,
-			baseEventPrice:      0,
-			tradePrice:          1,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_CorpEconomy_2_01",
-			itemFlags:           8,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210544,
-			creditPrice:         0,
-			premiumPrice:        325,
-			tokenPrice:          0,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    325,
-			baseTokenPrice:      0,
-			baseEventPrice:      0,
-			tradePrice:          13000,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_Parts_T5_Karud_Unique",
-			itemFlags:           0,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210545,
-			creditPrice:         0,
-			premiumPrice:        1460,
-			tokenPrice:          0,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    1460,
-			baseTokenPrice:      0,
-			baseEventPrice:      0,
-			tradePrice:          58400,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_Parts_T5_Karud_Unique_x5",
-			itemFlags:           0,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210542,
-			creditPrice:         0,
-			premiumPrice:        228,
-			tokenPrice:          0,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    325,
-			baseTokenPrice:      0,
-			baseEventPrice:      0,
-			tradePrice:          9120,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_Parts_Race2_L_T5_Francisca",
-			itemFlags:           12,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-		{storeItemId: 210543,
-			creditPrice:         0,
-			premiumPrice:        1022,
-			tokenPrice:          0,
-			eventPrice:          0,
-			baseCreditsPrice:    0,
-			basePremiumPrice:    1460,
-			baseTokenPrice:      0,
-			baseEventPrice:      0,
-			tradePrice:          40880,
-			tradePremiumPrice:   0,
-			race:                5,
-			requiredRank:        0,
-			stacks:              false,
-			cantBeBought:        false,
-			itemType:            4,
-			itemName:            "Bundle_Parts_Race2_L_T5_Francisca_x5",
-			itemFlags:           0,
-			requiredAccountAura: "",
-			deleteFromInventory: false},
-	}
-
-	bw := bitwriter.NewWriter(make([]byte, 0, 200))
-	bw.WriteBeUint32(uint32(len(entries)))
-	for _, v := range entries {
+func deflateStoreItems(si []StoreItem) (*bytes.Buffer, error) {
+	tmp := &bytes.Buffer{}
+	bw := bitwriter.NewWriter(make([]byte, 0, 4096))
+	bw.WriteBeUint32(uint32(len(si)))
+	for _, v := range si {
 		serializeStoreItem(v, bw)
 	}
-
-	deflate, _ := flate.NewWriter(&tmp, flate.BestCompression)
+	binary.Write(tmp, binary.BigEndian, uint32(len(bw.ReturnSlice())))
+	deflate, _ := flate.NewWriter(tmp, flate.BestCompression)
 	_, err := deflate.Write(bw.ReturnSlice()) // others call this an inflated empty list
 	if err != nil {
 		slog.Error("Failed to write to deflate", "err", err)
-		return nil
+		return nil, err
 	}
 	if err := deflate.Close(); err != nil {
 		slog.Error("Failed to flush deflate", "err", err)
-		return nil
+		return nil, err
+	}
+	return tmp, nil
+}
+
+func serializeStoreItem(si StoreItem, bw *bitwriter.Writer) {
+	bw.WriteBeUint32(si.StoreItemId)
+	bw.WriteBeUint32(si.CreditPrice)
+	bw.WriteBeUint32(si.PremiumPrice)
+	bw.WriteBeUint32(si.TokenPrice)
+	bw.WriteBeUint32(si.EventPrice)
+	bw.WriteBeUint32(si.BaseCreditsPrice)
+	bw.WriteBeUint32(si.BasePremiumPrice)
+	bw.WriteBeUint32(si.BaseTokenPrice)
+	bw.WriteBeUint32(si.BaseEventPrice)
+	bw.WriteBeUint32(si.TradePrice)
+	bw.WriteBeUint32(si.TradePremiumPrice)
+	bw.BwWriteByte(si.Race)
+	bw.WriteBeUint32(si.RequiredRank)
+	bw.WriteBool(si.Stacks)
+	bw.WriteBool(si.CantBeBought)
+	bw.BwWriteByte(byte(si.ItemType))
+	bw.WriteCString(si.ItemName)
+	bw.BwWriteByte(si.ItemFlags)
+	bw.WriteCString(si.RequiredAccountAura)
+	bw.WriteBool(si.DeleteFromInventory)
+}
+
+func (req *ccmdStoreReq) typeOneResponse() []byte {
+	ret := make([]byte, 0, 65545)
+	chunkSize := 65536
+	begin := min((chunkSize * int(req.chunkCount)), len(catalog))
+	end := min((chunkSize * int(req.chunkCount+1)), len(catalog))
+	ret = append(ret, 1)
+	ret = binary.BigEndian.AppendUint32(ret, uint32(len(catalog)))
+	ret = binary.BigEndian.AppendUint32(ret, uint32(begin))
+	ret = append(ret, catalog[begin:end]...)
+	return ret
+}
+
+func typeTwoResponse() []byte {
+
+	entries := []StoreItem{
+		{
+			StoreItemId:         210170,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          2400,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      2400,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_09",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210169,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          2400,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      2400,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_08",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210168,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          2400,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      2400,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_07",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210167,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          600,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      600,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_06",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210166,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          600,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      600,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_05",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210165,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          900,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      900,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_04",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210164,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          640,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      640,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_03",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210163,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          200,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      200,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_02",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210162,
+			CreditPrice:         0,
+			PremiumPrice:        0,
+			TokenPrice:          150,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    0,
+			BaseTokenPrice:      150,
+			BaseEventPrice:      0,
+			TradePrice:          1,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_CorpEconomy_2_01",
+			ItemFlags:           8,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210544,
+			CreditPrice:         0,
+			PremiumPrice:        325,
+			TokenPrice:          0,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    325,
+			BaseTokenPrice:      0,
+			BaseEventPrice:      0,
+			TradePrice:          13000,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_Parts_T5_Karud_Unique",
+			ItemFlags:           0,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210545,
+			CreditPrice:         0,
+			PremiumPrice:        1460,
+			TokenPrice:          0,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    1460,
+			BaseTokenPrice:      0,
+			BaseEventPrice:      0,
+			TradePrice:          58400,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_Parts_T5_Karud_Unique_x5",
+			ItemFlags:           0,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210542,
+			CreditPrice:         0,
+			PremiumPrice:        228,
+			TokenPrice:          0,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    325,
+			BaseTokenPrice:      0,
+			BaseEventPrice:      0,
+			TradePrice:          9120,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_Parts_Race2_L_T5_Francisca",
+			ItemFlags:           12,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
+		{StoreItemId: 210543,
+			CreditPrice:         0,
+			PremiumPrice:        1022,
+			TokenPrice:          0,
+			EventPrice:          0,
+			BaseCreditsPrice:    0,
+			BasePremiumPrice:    1460,
+			BaseTokenPrice:      0,
+			BaseEventPrice:      0,
+			TradePrice:          40880,
+			TradePremiumPrice:   0,
+			Race:                5,
+			RequiredRank:        0,
+			Stacks:              false,
+			CantBeBought:        false,
+			ItemType:            4,
+			ItemName:            "Bundle_Parts_Race2_L_T5_Francisca_x5",
+			ItemFlags:           0,
+			RequiredAccountAura: "",
+			DeleteFromInventory: false},
 	}
 
-	ret := make([]byte, 0, 13+tmp.Len())
+	tmp, _ := deflateStoreItems(entries)
+
+	ret := make([]byte, 0, 9+tmp.Len())
 	ret = append(ret, 2)
-	ret = binary.BigEndian.AppendUint32(ret, uint32(tmp.Len()+4))
+	ret = binary.BigEndian.AppendUint32(ret, uint32(tmp.Len()))
 	ret = binary.BigEndian.AppendUint32(ret, 0)
-	ret = binary.BigEndian.AppendUint32(ret, uint32(len(bw.ReturnSlice())))
 	ret = append(ret, tmp.Bytes()...)
 
 	return ret
@@ -573,21 +613,23 @@ func hashResponse() []byte {
 	return []byte{0x00, 0xc9, 0xc9, 0x54, 0x36}
 }
 
-func HandleCCmdStore(hdr *protocol.Header, body []byte, seq uint16, conn net.Conn) {
+func HandleCCmdStore(hdr *protocol.Header, body []byte, seq uint16, session *session.Session) {
 	req := ccmdStoreReq{}
+	initCatalogStore(session.Db)
 	req.parse(body)
 	switch req.store_type {
 	case 0:
 		resp := hashResponse()
-		conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
+		session.Conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
 	case 1:
-		slog.Error("Unhandled CCmdStore Type", "Store Type", req.store_type)
+		resp := req.typeOneResponse()
+		session.Conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
 	case 2:
 		resp := typeTwoResponse()
-		conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
+		session.Conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
 	case 3:
 		resp := typeThreeResponse()
-		conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
+		session.Conn.Write(protocol.MakeMessage(types.SCMD_STORE, seq, hdr.Sequence, resp))
 	default:
 		slog.Error("Invalid CCmdStore Request", "Store Type", req.store_type)
 	}
