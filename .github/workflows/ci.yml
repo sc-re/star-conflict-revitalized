@@ -27,10 +27,6 @@ jobs:
         with:
           go-version: '1.26'
       - run: go build -o out/${{ matrix.artifact_name }} starconflict/cmd/shard
-      - run: cp shard/config.json out/
-        if: github.ref == 'refs/heads/master'
-      - run: cp shard/cvars.json out/
-        if: github.ref == 'refs/heads/master'
       - uses: thedoctor0/zip-release@0.7.6
         with:
           type: 'zip'
@@ -67,6 +63,10 @@ jobs:
         with:
           go-version: '1.26'
       - run: go build -o out/${{ matrix.artifact_name }} starconflict/cmd/loadbalancer
+      - run: cp cmd/loadbalancer/config.json out/
+        if: github.ref == 'refs/heads/master'
+      - run: cp cmd/loadbalancer/cvars.json out/
+        if: github.ref == 'refs/heads/master'
       - uses: thedoctor0/zip-release@0.7.6
         with:
           type: 'zip'
