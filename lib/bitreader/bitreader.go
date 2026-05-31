@@ -18,11 +18,11 @@ func NewReader(buf []byte) *Reader {
 
 func (bw *Reader) ReadBool() (bool, error) {
 	byteOffset := bw.offset / 8
-	bitOffset := bw.offset % 8
+	bitOffset := bw.offset & 7
 	if len(bw.buf) <= int(byteOffset) {
 		return false, fmt.Errorf("EofByte, tried to read from []byte len(%v) at offset %v", len(bw.buf), byteOffset)
 	}
-	b := bw.buf[byteOffset] >> (7 - bitOffset)
+	b := (bw.buf[byteOffset] >> (7 - bitOffset)) & 1
 	bw.offset += 1
 	return b == 1, nil
 }
