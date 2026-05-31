@@ -12,7 +12,7 @@ import (
 
 type ac_server_info_req struct{}
 
-func (req *ac_server_info_req) response(sandboxAccess uint32, mm_enable_pve_raids uint8, mm_enable_league uint8, mm_enable_coop_vs_ai uint8) []byte {
+func (req *ac_server_info_req) response(sandboxAccess uint32, mm_disabled uint8, mm_enable_pve_raids uint8, mm_enable_league uint8, mm_enable_coop_vs_ai uint8) []byte {
 	resp := make([]byte, 22)
 	binary.BigEndian.PutUint16(resp[0:], uint16(types.AC_SERVER_INFO))
 	timestamp := float64(time.Now().Unix())
@@ -20,9 +20,10 @@ func (req *ac_server_info_req) response(sandboxAccess uint32, mm_enable_pve_raid
 	// TODO: Figure out what this does
 	binary.LittleEndian.PutUint32(resp[10:], 0x0bd18549)
 	binary.LittleEndian.PutUint32(resp[14:], sandboxAccess)
-	resp[18] = mm_enable_pve_raids
-	resp[19] = mm_enable_league
-	resp[20] = mm_enable_coop_vs_ai
+	resp[18] = mm_disabled
+	resp[19] = mm_enable_pve_raids
+	resp[20] = mm_enable_league
+	resp[21] = mm_enable_coop_vs_ai
 
 	return resp
 }
@@ -33,6 +34,6 @@ func handle_ac_server_info(body []byte, seq uint16, seqRet uint16, conn net.Conn
 		// err
 	}
 	log.Printf("Req: ac_server_info[%v]", req)
-	resp := req.response(4, 0, 0, 0)
+	resp := req.response(8, 0, 1, 1, 1)
 	conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, seq, seqRet, resp))
 }
