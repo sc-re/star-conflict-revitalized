@@ -13,5 +13,8 @@ require (
 
 require (
 	github.com/alecthomas/kong v1.15.0 // indirect
+	github.com/elazarl/goproxy v1.8.4 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 )
