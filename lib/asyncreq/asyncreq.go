@@ -47,6 +47,8 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, session *sess
 		handle_ac_load_initial_player_data(body, seq, hdr.Sequence, session.Conn)
 	case types.AC_LOBBY_INFO:
 		handle_ac_lobby_info(body, seq, hdr.Sequence, session.Conn)
+	case types.AC_CHANGE_PLAYER_NICKNAME:
+		handle_ac_change_player_nickname(body, seq, hdr.Sequence, session)
 	case types.AC_CLAN_REQUEST_DESC:
 		handle_ac_clan_request_desc(body, seq, hdr.Sequence, session.Conn)
 	case types.AC_FRIENDS_SEND_REQUEST:
