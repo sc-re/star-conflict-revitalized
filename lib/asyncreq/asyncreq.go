@@ -53,6 +53,8 @@ func HandleAsyncReq(hdr *protocol.Header, body []byte, seq uint16, session *sess
 		handle_ac_clan_request_desc(body, seq, hdr.Sequence, session.Conn)
 	case types.AC_FRIENDS_SEND_REQUEST:
 		handle_ac_friends_send_request(body, seq, hdr.Sequence, session.Conn)
+	case types.AC_LEADERBOARD_GET:
+		handle_ac_leaderboard_get(body, seq, hdr.Sequence, session)
 	case types.AC_LEADERBOARD_GET_DESCS:
 		handle_ac_leaderboard_get_desc(body, seq, hdr.Sequence, session.Conn)
 	case types.AC_TEACHING_LIST:
