@@ -53,3 +53,34 @@ packet
 |  18 | `SCMD_CLAN_NOTIFICATION`         |  38 | `SCMD_REPLACE_CHAT_MSG`           |
 |  19 | `SCMD_USER_PROFILE_NOTIFICATION` |     |                                   |
 
+## Sub Types
+
+### AC Types
+
+These types are used within `CSCMD_ASYNC_REQ` messages.
+
+### SN Types
+
+These types are used within `SCMD_NOTIFICATION` messages, the body is always a Variant map.
+
+## Variant Map Format
+
+- `u32` Amount of entries
+- `bit` Whether the Variant map is using Integer or C-String Keys
+- `[variant]` List of variants
+
+### `variant`
+
+key `Either[int, string]` : type `u8` : value
+
+| `u8` | type |
+|------|------|
+| 0x00 | nil |
+| 0x01 | int32|
+| 0x02 | uint64 |
+| 0x03 | uint64 (another?) |
+| 0x04 | float32 |
+| 0x05 | C-String |
+| 0x06 | Variant Map |
+| 0x07 | unkwn |
+| 0x08 | boolean |
