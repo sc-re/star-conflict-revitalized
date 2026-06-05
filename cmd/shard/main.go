@@ -12,6 +12,7 @@ import (
 	"starconflict/lib/asyncreq"
 	"starconflict/lib/auth"
 	"starconflict/lib/cmdstore"
+	"starconflict/lib/hub"
 	"starconflict/lib/protocol"
 	"starconflict/lib/session"
 	"starconflict/lib/types"
@@ -30,7 +31,7 @@ CREATE TABLE user (
 );
 `
 
-func HandleAuthentication(session *session.Session, connectionMap *sync.Map) error {
+func shardHandleAuthentication(session *session.Session, connectionMap *sync.Map) error {
 	key, group := auth.CreateClientChallenge()
 	if err := auth.SendChallenge(session.Conn, key, session.GetNextSeq()); err != nil {
 		return err
@@ -61,7 +62,7 @@ func HandleAuthentication(session *session.Session, connectionMap *sync.Map) err
 	}
 }
 
-func HandleMainLoop(session *session.Session) error {
+func shardHandleMainLoop(session *session.Session) error {
 	//go userprofilenotification.SendUserProfileNotificationOnlineState(session.conn, session.uid, userprofilenotification.USER_STATE_ONLINE)
 	go asyncreq.Send_ac_vessel_strip_improper_battle(session.Conn)
 	go asyncreq.SendAcPlayerPush(session)
@@ -92,7 +93,7 @@ func HandleMainLoop(session *session.Session) error {
 	}
 }
 
-func handle(conn net.Conn, db *sqlx.DB, connectionMap *sync.Map) {
+func shardHandle(conn net.Conn, db *sqlx.DB, connectionMap *sync.Map) {
 	defer conn.Close()
 	defer func() {
 		if err := recover(); err != nil {
@@ -103,18 +104,118 @@ func handle(conn net.Conn, db *sqlx.DB, connectionMap *sync.Map) {
 	session := session.Session{}
 	session.Db = db
 	session.Conn = conn
-	if err := HandleAuthentication(&session, connectionMap); err != nil {
+	if err := shardHandleAuthentication(&session, connectionMap); err != nil {
 		return
 	}
-	HandleMainLoop(&session)
+	shardHandleMainLoop(&session)
+}
+
+func listenShard(db *sqlx.DB, listenAddress string, connectionMap *sync.Map, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	listen, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		log.Fatalf("listen: %v", err)
+	}
+	defer listen.Close()
+	slog.Info("TCP Socket opened", "listenAddress", listenAddress)
+
+	for {
+		conn, err := listen.Accept()
+		if err != nil {
+			slog.Error("accept failed", "error", err)
+			continue
+		}
+		go shardHandle(conn, db, connectionMap)
+	}
+}
+
+func hubHandleMainLoop(session *session.Session) error {
+	//go userprofilenotification.SendUserProfileNotificationOnlineState(session.conn, session.uid, userprofilenotification.USER_STATE_ONLINE)
+	for {
+		hdr, body, err := protocol.ParseNextHubMessage(session.Conn)
+		if err != nil {
+			return err
+		}
+		if hdr.Special {
+			// TODO: Do something
+			continue
+		}
+		switch hdr.CommandType {
+		case types.CL_REGISTER:
+			hub.HandleRegister(session.Conn, *hdr, body)
+			continue
+		}
+
+		slog.Warn("Unhandled message", "hdr", hdr, "type", hdr.CommandType, "body", body)
+	}
+}
+
+func hubHandleRegistration(session *session.Session, connetionMap *sync.Map) error {
+	for {
+		hdr, body, err := protocol.ParseNextHubMessage(session.Conn)
+		_ = body
+		if err != nil {
+			return err
+		}
+		if hdr.Special {
+			// TODO: Do something
+			continue
+		}
+		switch hdr.CommandType {
+		case types.INITIAL_REGISTER:
+			hub.HandleInitialRegister(session.Conn, *hdr)
+			return nil
+		}
+	}
+}
+
+func hubHandle(conn net.Conn, db *sqlx.DB, connectionMap *sync.Map) {
+	defer conn.Close()
+	defer slog.Debug("Client disconnected", "conn", conn.RemoteAddr())
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("handle failed: %v", err)
+			debug.PrintStack()
+		}
+	}()
+	session := session.Session{}
+	session.Db = db
+	session.Conn = conn
+	if err := hubHandleRegistration(&session, connectionMap); err != nil {
+		return
+	}
+	hubHandleMainLoop(&session)
+}
+
+func listenHub(db *sqlx.DB, listenAddress string, connectionMap *sync.Map, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	listen, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		log.Fatalf("listen: %v", err)
+	}
+	defer listen.Close()
+	slog.Info("TCP Socket opened", "listenAddress", listenAddress)
+
+	for {
+		conn, err := listen.Accept()
+		if err != nil {
+			slog.Error("accept failed", "error", err)
+			continue
+		}
+		go hubHandle(conn, db, connectionMap)
+	}
 }
 
 func main() {
-	listenAddress := flag.String("listen", "127.0.0.1:3802", "Address to listen on")
+	listenShardAddress := flag.String("shardListen", "127.0.0.1:3802", "Address to listen on")
+	listenHubAddress := flag.String("hubListen", "127.0.0.1:3850", "Address to listen on")
 	logLevel := flag.String("loglevel", "info", "Set loglevel [debug/info/warn/error]")
 	flag.Parse()
 
-	connectionMap := &sync.Map{}
+	shardConnectionMap := &sync.Map{}
+	hubConnectionMap := &sync.Map{}
 
 	slogLevel := slog.LevelDebug
 	if err := slogLevel.UnmarshalText([]byte(*logLevel)); err != nil {
@@ -134,19 +235,9 @@ func main() {
 	defer db.Close()
 	//db.MustExec(schema)
 
-	listen, err := net.Listen("tcp", *listenAddress)
-	if err != nil {
-		log.Fatalf("listen: %v", err)
-	}
-	defer listen.Close()
-	slog.Info("TCP Socket opened", "listenAddress", *listenAddress)
-
-	for {
-		conn, err := listen.Accept()
-		if err != nil {
-			slog.Error("accept failed", "error", err)
-			continue
-		}
-		go handle(conn, db, connectionMap)
-	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go listenShard(db, *listenShardAddress, shardConnectionMap, &wg)
+	go listenHub(db, *listenHubAddress, hubConnectionMap, &wg)
+	wg.Wait()
 }
