@@ -1,11 +1,15 @@
 package asyncreq
 
 import (
+	"context"
 	"log/slog"
 	"starconflict/lib/bitwriter"
+	"starconflict/lib/dbtypes"
 	"starconflict/lib/protocol"
 	"starconflict/lib/session"
 	"starconflict/lib/types"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type ac_player_credits_req struct {
@@ -27,17 +31,18 @@ func (req *ac_player_credits_req) response(session *session.Session) []byte {
 	bw := bitwriter.NewWriter(make([]byte, 0, 68))
 	bw.WriteBeUint16(uint16(types.AC_PLAYER_CREDITS))
 	bw.WriteBeUint16(req.flag)
-	credits := ac_player_credits_resp{}
-	if err := session.Db.Get(&credits, "SELECT gold, iridium, credits, freeSynergy FROM credits WHERE uid=$1", session.Uid); err != nil {
-		slog.Error("Failed to get Credits from database", "err", err, "uid", session.Uid)
+	var account dbtypes.Accounts
+	if err := session.Db.Database("cosmosim").Collection("accounts").FindOne(context.TODO(), bson.M{"uid": session.Uid}).Decode(&account); err != nil {
+		slog.Error("Failed to get account", "error", err)
+		return nil
 	}
 
-	bw.WriteBeUint64(credits.Credits)
+	bw.WriteBeUint64(account.Credits)
 	if req.flag&0x02 != 0 {
-		bw.WriteBeUint64(credits.Gold)
+		bw.WriteBeUint64(account.GoldCredits)
 	}
 	if req.flag&0x04 != 0 {
-		bw.WriteBeUint64(credits.Iridium)
+		bw.WriteBeUint64(account.TokenCredits)
 	}
 	if req.flag&0x08 != 0 {
 		bw.WriteBeUint64(4) // Xenochips
@@ -49,7 +54,7 @@ func (req *ac_player_credits_req) response(session *session.Session) []byte {
 		bw.WriteBeUint64(0) // idk, vid
 	}
 	if req.flag&0x40 != 0 {
-		bw.WriteBeUint32(credits.FreeSynergy)
+		bw.WriteBeUint32(account.VesselExpPool)
 	}
 	// idk, some ressources?
 	if req.flag&0x80 != 0 {

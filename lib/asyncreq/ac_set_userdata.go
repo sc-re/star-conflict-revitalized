@@ -1,11 +1,14 @@
 package asyncreq
 
 import (
+	"context"
 	"encoding/binary"
 	"log/slog"
 	"starconflict/lib/protocol"
 	"starconflict/lib/session"
 	"starconflict/lib/types"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type ac_set_userdata_req struct {
@@ -32,8 +35,9 @@ func handle_ac_set_userdata(body []byte, seq uint16, seqRet uint16, session *ses
 		slog.Error("Failed to parse ac_set_userdata_req", "error", err)
 	}
 	// XXX: This is a free data storage API, no size limit, no data validation, just pure storage
-	if _, err := session.Db.Exec("UPDATE user SET userdata = $1 WHERE uid = $2", req.userdata, session.Uid); err != nil {
-		slog.Error("Failed to update userdata in table user", "err", err, "uid", session.Uid)
+	if _, err := session.Db.Database("cosmosim").Collection("accounts").UpdateOne(context.TODO(), bson.M{"uid": session.Uid}, bson.M{"$set": bson.M{"userdata": req.userdata}}); err != nil {
+		slog.Error("Failed to save userdata", "error", err)
+		return
 	}
 
 	resp := req.response(1)

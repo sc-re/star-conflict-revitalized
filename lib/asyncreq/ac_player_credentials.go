@@ -1,17 +1,21 @@
 package asyncreq
 
 import (
+	"context"
 	"log/slog"
 	"starconflict/lib/bitwriter"
+	"starconflict/lib/dbtypes"
 	"starconflict/lib/protocol"
 	"starconflict/lib/session"
 	"starconflict/lib/types"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type ac_player_credentials_req struct{}
 
 type ac_player_credentials_resp struct {
-	username string
+	nickname string
 }
 
 func (req *ac_player_credentials_req) parse(body []byte) error {
@@ -19,14 +23,19 @@ func (req *ac_player_credentials_req) parse(body []byte) error {
 }
 
 func (req *ac_player_credentials_req) response(session *session.Session) []byte {
-	var username string
+	var nickname string
 	bw := bitwriter.NewWriter(make([]byte, 0, 40))
 	bw.WriteBeUint16(uint16(types.AC_PLAYER_CREDENTIALS))
-	if err := session.Db.Get(&username, "SELECT nickname FROM user WHERE uid=$1", session.Uid); err != nil {
+	var account dbtypes.Accounts
+	if err := session.Db.Database("cosmosim").Collection("accounts").FindOne(context.TODO(), bson.M{"uid": session.Uid}).Decode(&account); err != nil {
 		slog.Error("Failed to get nickname from Database", "err", err, "uid", session.Uid)
 		// Err: Disconnect?
+		nickname = ""
+	} else {
+		nickname = account.NickName
 	}
-	bw.WriteCString(username) // username
+
+	bw.WriteCString(nickname) // nickname
 	bw.BwWriteByte(0)         // Idk
 	bw.WriteBeUint64(0)       // Steam id
 	bw.WriteBeUint64(0)       // Some other external(?) Account id

@@ -1,6 +1,7 @@
 package asyncreq
 
 import (
+	"context"
 	"log/slog"
 
 	"starconflict/lib/bitreader"
@@ -11,6 +12,8 @@ import (
 	"starconflict/lib/types"
 	"starconflict/lib/types/store"
 	_ "starconflict/lib/variantdict"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type ac_buy_item_req struct {
@@ -36,14 +39,14 @@ func (req *ac_buy_item_req) parse(body []byte) error {
 	if err != nil {
 		return err
 	}
-	req.hasDiscount, err = br.ReadBool()
-	if err != nil {
-		return err
-	}
 	if v, err := br.ReadByte(); err != nil {
 		return err
 	} else {
 		req.creditsType = store.CreditsType(v)
+	}
+	req.hasDiscount, err = br.ReadBool()
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -67,44 +70,28 @@ func (req *ac_buy_item_req) handle_motto(session *session.Session, item cmdstore
 		status: store.StoreBuyResultError,
 	}
 	if req.creditsType != store.CreditsTypeGold {
+		slog.Warn("Missmatch of creditstype", "req", req.creditsType, "store", store.CreditsTypeGold)
 		resp.status = store.StoreBuyResultInvalidData
 		return req.response(&resp)
 	}
-	tx, err := session.Db.Begin()
-	if err != nil {
-		slog.Error("Failed to start Database transaction")
-		return req.response(&resp)
-	}
-	defer tx.Rollback()
-	if result, err := tx.Exec("UPDATE credits SET gold = gold - $1 WHERE uid=$2 AND gold >= $1", item.PremiumPrice, session.Uid); err != nil {
-		slog.Error("Failed to update database", "err", err)
-		resp.status = store.StoreBuyResultError
-		return req.response(&resp)
+	session.Db.Database("cosmosim").Collection("accounts").UpdateOne(context.TODO(), bson.M{"uid": session.Uid}, bson.M{"$set": bson.M{"goldCredits": 10000}})
+	if result, err := session.Db.Database("cosmosim").Collection("accounts").UpdateOne(context.TODO(),
+		bson.M{
+			"uid":         session.Uid,
+			"goldCredits": bson.M{"$gt": 500},
+		},
+		bson.M{
+			"$inc":      bson.M{"goldCredits": -500},
+			"$addToSet": bson.M{"acquiredMottos": item.ItemName},
+		},
+	); err != nil {
+		slog.Error("Failed to buy motto", "err", err)
+	} else if result.ModifiedCount != 1 {
+		slog.Error("Faild to modify database", "result", result)
 	} else {
-		if rows, err := result.RowsAffected(); err != nil {
-			slog.Error("Failed to check affected rows", "err", err)
-			resp.status = store.StoreBuyResultError
-			return req.response(&resp)
-		} else if rows != 1 {
-			slog.Error("Failed to substract gold", "err", err)
-			resp.status = store.StoreBuyResultCantAfford
-			return req.response(&resp)
-		}
+		//session.Conn.Write(protocol.MakeMessage(types.SCMD_NOTIFICATION, 0, 0, variantdict.Marshal(struct{})))
+		resp.status = store.StoreBuyResultOk
 	}
-	if _, err := tx.Exec("INSERT INTO mottos (motto, uid) VALUES ($1, $2)", item.ItemName, session.Uid); err != nil {
-		slog.Error("failed to insert Motto", "err", err)
-		resp.status = store.StoreBuyResultError
-		return req.response(&resp)
-	}
-	if err := tx.Commit(); err != nil {
-		slog.Error("Failed to commit transaction", "err", err)
-		resp.status = store.StoreBuyResultError
-		return req.response(&resp)
-	}
-
-	//session.Conn.Write(protocol.MakeMessage(types.SCMD_NOTIFICATION, 0, 0, variantdict.Marshal(struct{})))
-	resp.status = store.StoreBuyResultOk
-
 	return req.response(&resp)
 }
 
@@ -112,10 +99,14 @@ func handle_ac_buy_item(body []byte, seq uint16, seqRet uint16, session *session
 	req := ac_buy_item_req{}
 	if err := req.parse(body[2:]); err != nil {
 		slog.Error("Failed to parse ac_buy_item_req", "error", err)
+	} else {
+		slog.Debug("Got ac_buy_item_req", "req", req)
 	}
 	item := cmdstore.StoreItem{}
-	if err := session.Db.Get(&item, "SELECT * FROM store WHERE StoreItemId=$1", req.storeItemId); err != nil {
+	if err := session.Db.Database("cosmosim").Collection("store").FindOne(context.TODO(), bson.M{"StoreItemId": req.storeItemId}).Decode(&item); err != nil {
 		slog.Error("Failed to get item from database", "StoreItemId", req.storeItemId)
+	} else {
+		slog.Debug("Fetched item from database", "StoreItemId", req.storeItemId, "item", item)
 	}
 
 	resp := req.response(&ac_buy_item_resp{status: store.StoreBuyResultSteamDeniedTransaction})

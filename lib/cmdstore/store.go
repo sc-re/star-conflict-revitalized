@@ -3,6 +3,7 @@ package cmdstore
 import (
 	"bytes"
 	"compress/flate"
+	"context"
 	"encoding/binary"
 	"log/slog"
 	"starconflict/lib/bitwriter"
@@ -11,7 +12,8 @@ import (
 	"starconflict/lib/types"
 	"sync"
 
-	"github.com/jmoiron/sqlx"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 var (
@@ -46,33 +48,41 @@ const (
 )
 
 type StoreItem struct {
-	StoreItemId         uint32   `db:"StoreItemId"`
-	CreditPrice         uint32   `db:"CreditPrice"`
-	PremiumPrice        uint32   `db:"PremiumPrice"`
-	TokenPrice          uint32   `db:"TokenPrice"`
-	EventPrice          uint32   `db:"EventPrice"`
-	BaseCreditsPrice    uint32   `db:"BaseCreditsPrice"`
-	BasePremiumPrice    uint32   `db:"BasePremiumPrice"`
-	BaseTokenPrice      uint32   `db:"BaseTokenPrice"`
-	BaseEventPrice      uint32   `db:"BaseEventPrice"`
-	TradePrice          uint32   `db:"TradePrice"`
-	TradePremiumPrice   uint32   `db:"TradePremiumPrice"`
-	Race                byte     `db:"Race"`
-	RequiredRank        uint32   `db:"RequiredRank"`
-	Stacks              bool     `db:"Stacks"`
-	CantBeBought        bool     `db:"CantBeBought"`
-	ItemType            ItemType `db:"ItemType"`
-	ItemName            string   `db:"ItemName"`
-	ItemFlags           byte     `db:"ItemFlags"`
-	RequiredAccountAura string   `db:"RequiredAccountAura"`
-	DeleteFromInventory bool     `db:"DeleteFromInventory"`
+	StoreItemId         uint32   `bson:"StoreItemId,omitempty"`
+	CreditPrice         uint32   `bson:"CreditPrice,omitempty"`
+	PremiumPrice        uint32   `bson:"PremiumPrice,omitempty"`
+	TokenPrice          uint32   `bson:"TokenPrice,omitempty"`
+	EventPrice          uint32   `bson:"EventPrice,omitempty"`
+	BaseCreditsPrice    uint32   `bson:"BaseCreditsPrice,omitempty"`
+	BasePremiumPrice    uint32   `bson:"BasePremiumPrice,omitempty"`
+	BaseTokenPrice      uint32   `bson:"BaseTokenPrice,omitempty"`
+	BaseEventPrice      uint32   `bson:"BaseEventPrice,omitempty"`
+	TradePrice          uint32   `bson:"TradePrice,omitempty"`
+	TradePremiumPrice   uint32   `bson:"TradePremiumPrice,omitempty"`
+	Race                byte     `bson:"Race,omitempty"`
+	RequiredRank        uint32   `bson:"RequiredRank,omitempty"`
+	Stacks              bool     `bson:"Stacks,omitempty"`
+	CantBeBought        bool     `bson:"CantBeBought,omitempty"`
+	ItemType            ItemType `bson:"ItemType,omitempty"`
+	ItemName            string   `bson:"ItemName,omitempty"`
+	ItemFlags           byte     `bson:"ItemFlags,omitempty"`
+	RequiredAccountAura string   `bson:"RequiredAccountAura,omitempty"`
+	DeleteFromInventory bool     `bson:"DeleteFromInventory,omitempty"`
 }
 
-func initCatalogStore(db *sqlx.DB) {
+func initCatalogStore(client *mongo.Client) {
 	once.Do(func() {
 		storeItems := []StoreItem{}
-		db.Select(&storeItems, "SELECT * FROM store")
-		tmp, _ := deflateStoreItems(storeItems)
+		cursor, err := client.Database("cosmosim").Collection("store").Find(context.TODO(), bson.M{})
+		if err != nil {
+			return
+		}
+		defer cursor.Close(context.TODO())
+		cursor.All(context.TODO(), &storeItems)
+		tmp, err := deflateStoreItems(storeItems)
+		if err != nil {
+			return
+		}
 		catalog = tmp.Bytes()
 		slog.Debug("Fetched catalog from databse", "len(storeItems)", len(storeItems), "len(catalog)", len(catalog))
 	})
@@ -298,6 +308,7 @@ func deflateStoreItems(si []StoreItem) (*bytes.Buffer, error) {
 }
 
 func serializeStoreItem(si StoreItem, bw *bitwriter.Writer) {
+	slog.Debug("Serializign store item", "item", si)
 	bw.WriteBeUint32(si.StoreItemId)
 	bw.WriteBeUint32(si.CreditPrice)
 	bw.WriteBeUint32(si.PremiumPrice)

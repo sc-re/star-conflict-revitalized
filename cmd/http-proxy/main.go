@@ -46,7 +46,7 @@ type Servers struct {
 func addressXmlResponse(req *http.Request) *http.Response {
 	servers := Servers{
 		Servers: []Server{
-			{Name: "VM", Address: "192.168.2.66:4801"},
+			{Name: "VM", Address: "192.168.2.69:4801"},
 			{Name: "localhost", Address: "localhost"},
 			{Name: "live", Address: "node01im-ru.star-conflict.com:3801;node11sv-ru.star-conflict.com:3801", DefaultLive: "1"},
 		},

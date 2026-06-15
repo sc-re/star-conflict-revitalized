@@ -1,12 +1,16 @@
 package asyncreq
 
 import (
+	"context"
 	"log/slog"
 	"starconflict/lib/bitreader"
 	"starconflict/lib/bitwriter"
+	"starconflict/lib/dbtypes"
 	"starconflict/lib/protocol"
 	"starconflict/lib/session"
 	"starconflict/lib/types"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type userProfileFieldMask uint32
@@ -122,16 +126,14 @@ func upfAvatarsWriter(bw *bitwriter.Writer, uid uint64) {
 }
 
 func upfMottosWriter(bw *bitwriter.Writer, uid uint64, session *session.Session) {
-	mottos := []string{}
-	if err := session.Db.Select(&mottos, "SELECT motto FROM mottos WHERE uid=$1", uid); err != nil {
-		mottos = []string{}
+	var account dbtypes.Accounts
+	if err := session.Db.Database("cosmosim").Collection("accounts").FindOne(context.TODO(), bson.M{"uid": session.Uid}).Decode(&account); err != nil {
+		return
 	}
-	activeMotto := ""
-	session.Db.Get(&activeMotto, "SELECT activeMotto FROM user WHERE uid=$1", uid)
 
-	bw.WriteCString(activeMotto)
-	bw.WriteBeUint16(uint16(len(mottos))) // Unlocked Motto Count
-	for _, motto := range mottos {
+	bw.WriteCString(account.Motto)
+	bw.WriteBeUint16(uint16(len(account.AcquiredMottos))) // Unlocked Motto Count
+	for _, motto := range account.AcquiredMottos {
 		bw.WriteCString(motto)
 	}
 }

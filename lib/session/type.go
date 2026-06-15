@@ -1,8 +1,9 @@
 package session
 
 import (
-	"github.com/jmoiron/sqlx"
 	"net"
+
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type Session struct {
@@ -10,7 +11,7 @@ type Session struct {
 	sessionToken string
 	seq          uint16
 	Conn         net.Conn
-	Db           *sqlx.DB
+	Db           *mongo.Client
 }
 
 func (s *Session) GetNextSeq() uint16 {

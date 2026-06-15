@@ -1,15 +1,15 @@
 package asyncreq
 
 import (
+	"context"
 	"encoding/binary"
-	"errors"
 	"log/slog"
 	"starconflict/lib/bitreader"
 	"starconflict/lib/protocol"
 	"starconflict/lib/session"
 	"starconflict/lib/types"
 
-	"github.com/mattn/go-sqlite3"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type NickNameChangeResultType byte
@@ -67,22 +67,15 @@ func handle_ac_change_player_nickname(body []byte, seq uint16, seqRet uint16, se
 	resp := req.response(NickNameChangeResultOk)
 	if result, invalid := req.verifyNickName(); invalid {
 		resp = req.response(result)
-	} else if result, err := session.Db.Exec("UPDATE user SET nickname = $1 WHERE uid = $2", req.name, session.Uid); err != nil {
+	} else if result, err := session.Db.Database("cosmosim").Collection("accounts").UpdateOne(context.TODO(), bson.M{"uid": session.Uid}, bson.M{"$set": bson.M{"nickName": req.name}}); err != nil {
 		resp = req.response(NickNameChangeResultError)
-		var sqliteErr sqlite3.Error
-		if errors.As(err, &sqliteErr) {
-			if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-				resp = req.response(NickNameChangeResultNickTaken)
-			} else {
-				slog.Warn("Db error", "err", err)
-			}
-		}
+		slog.Warn("Db error", "err", err)
 	} else {
-		if rows, err := result.RowsAffected(); err != nil {
-			resp = req.response(NickNameChangeResultError)
-		} else if rows != 1 {
+		// XXX: Add a unique name constraint
+		if result.MatchedCount != 1 || result.ModifiedCount != 1 {
 			resp = req.response(NickNameChangeResultError)
 		}
 	}
+
 	session.Conn.Write(protocol.MakeMessage(types.CSCMD_ASYNC_REQ, seq, seqRet, resp))
 }

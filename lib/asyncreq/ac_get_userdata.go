@@ -1,11 +1,15 @@
 package asyncreq
 
 import (
+	"context"
 	"encoding/binary"
 	"log/slog"
+	"starconflict/lib/dbtypes"
 	"starconflict/lib/protocol"
 	"starconflict/lib/session"
 	"starconflict/lib/types"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type ac_get_userdata_req struct{}
@@ -95,13 +99,13 @@ func (req *ac_get_userdata_req) parse(body []byte) error {
 }
 
 func (req *ac_get_userdata_req) response(session *session.Session) []byte {
-	var userdata []byte
-	if err := session.Db.Get(&userdata, "SELECT userdata FROM user WHERE uid=$1", session.Uid); err != nil {
+	account := dbtypes.Accounts{}
+	if err := session.Db.Database("cosmosim").Collection("accounts").FindOne(context.TODO(), bson.M{"uid": session.Uid}).Decode(&account); err != nil {
 		slog.Error("Failed to get userdata from database", "err", err, "uid", session.Uid)
 	}
-	ret := make([]byte, 0, len(userdata)+2)
+	ret := make([]byte, 0, len(account.Userdata)+2)
 	ret = binary.BigEndian.AppendUint16(ret, uint16(types.AC_GET_USERDATA))
-	ret = append(ret, userdata...)
+	ret = append(ret, account.Userdata...)
 	return ret
 }
 

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
@@ -12,11 +13,13 @@ import (
 	"slices"
 
 	"starconflict/lib/bitwriter"
+	"starconflict/lib/dbtypes"
 	"starconflict/lib/protocol"
 	"starconflict/lib/types"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/monnand/dhkx"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type authMethod uint8
@@ -44,14 +47,6 @@ type authRequest struct {
 	password   []byte
 	platform   string
 	machineId  string
-}
-
-type user struct {
-	Uid      uint64
-	Nickname string
-	Zone     byte
-	Password string
-	Mail     string
 }
 
 func readAuthMethod(reader *bytes.Reader) (authMethod, error) {
@@ -138,18 +133,18 @@ func (auth *authRequest) checkClientVersion() bool {
 	return auth.version == "1.14.09.166666"
 }
 
-func Authenticate(body []byte, db *sqlx.DB, key *dhkx.DHKey, group *dhkx.DHGroup) (bool, uint64, types.MasterServerDisconnectReason, error) {
+func Authenticate(body []byte, client *mongo.Client, key *dhkx.DHKey, group *dhkx.DHGroup) (bool, uint64, types.MasterServerDisconnectReason, error) {
 	auth := authRequest{}
 	err := auth.parseCCmdAuthRequest(body)
 	if err != nil {
 		return false, 0, types.MasterServerDisconnectReason(0xff), err
 	}
 	err = auth.decryptPassword(group, key)
-	user := user{}
-	if err := db.Get(&user, "SELECT mail,nickname,uid,zone,password FROM user WHERE mail=$1", auth.email); err != nil {
+	account := dbtypes.Accounts{}
+	if err := client.Database("cosmosim").Collection("accounts").FindOne(context.TODO(), bson.M{"username": auth.email}).Decode(&account); err != nil {
 		return false, 0, types.DR_INVALID_LOGIN, err
 	}
-	valid := checkPassword(auth.password, user.Password)
+	valid := checkPassword(auth.password, account.Password)
 	if !valid {
 		return false, 0, types.DR_INVALID_LOGIN, err
 	}
@@ -161,7 +156,7 @@ func Authenticate(body []byte, db *sqlx.DB, key *dhkx.DHKey, group *dhkx.DHGroup
 	if !valid {
 		return false, 0, types.DR_BAD_CLIENT_VERSION, nil
 	}
-	return true, user.Uid, 0, nil
+	return true, account.Uid, 0, nil
 }
 
 func CreateClientChallenge() (*dhkx.DHKey, *dhkx.DHGroup) {
@@ -173,23 +168,23 @@ func CreateClientChallenge() (*dhkx.DHKey, *dhkx.DHGroup) {
 	return priv, group
 }
 
-func SendAuthAck(conn net.Conn, db *sqlx.DB, seq uint16, seqRet uint16, uid uint64) error {
+func SendAuthAck(conn net.Conn, client *mongo.Client, seq uint16, seqRet uint16, uid uint64) error {
 	// TODO: Actually generate some tokens and store them somewhere
 	idkToken := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	token := uint64(10)
 
-	var user user
-	if err := db.Get(&user, "SELECT nickname,uid,zone FROM user WHERE uid=$1", uid); err != nil {
+	var account dbtypes.Accounts
+	if err := client.Database("cosmosim").Collection("accounts").FindOne(context.TODO(), bson.M{"uid": uid}).Decode(&account); err != nil {
 		return err
 	}
 
-	bw := bitwriter.NewWriter(make([]byte, 0, 86+len(user.Nickname)))
-	bw.WriteBeUint64(user.Uid)
+	bw := bitwriter.NewWriter(make([]byte, 0, 86+len(account.NickName)))
+	bw.WriteBeUint64(account.Uid)
 	bw.WriteBeUint64(token)
-	bw.WriteCString(user.Nickname)
+	bw.WriteCString(account.NickName)
 	bw.WriteCString(idkToken)
 	bw.WriteBool(false)
-	bw.WriteBeUint32(uint32(user.Zone))
+	bw.WriteBeUint32(uint32(account.SpaceStation))
 	_, err := conn.Write(protocol.MakeMessage(types.SCMD_AUTH_ACK, seq, seqRet, bw.ReturnSlice()))
 	return err
 }

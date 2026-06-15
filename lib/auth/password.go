@@ -35,7 +35,7 @@ var (
 	formatString = "$%s$v=%d$m=%d,t=%d,p=%d,l=%d$%s$%s"
 )
 
-func hashPassword(password []byte) (string, error) {
+func HashPassword(password []byte) (string, error) {
 	args := phc{
 		id:              "argon2id",
 		version:         argon2.Version,
